@@ -184,6 +184,10 @@ export const App: React.FC = () => {
             levels={OFFICIAL_DILUTION_TABLE}
             hasWebhook={!!sheetsConfig.webhookUrl}
             onDeleteTrial={handleDeleteTrial}
+            onClearAllTrials={() => {
+              handleUpdateAllTrials([]);
+              showToast('Todos los registros han sido vaciados');
+            }}
             onSyncPending={handleSyncPending}
             isSyncing={isSyncing}
           />

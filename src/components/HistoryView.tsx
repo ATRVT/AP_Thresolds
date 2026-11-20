@@ -16,6 +16,7 @@ interface HistoryViewProps {
   levels: DilutionLevel[];
   hasWebhook: boolean;
   onDeleteTrial: (id: string) => void;
+  onClearAllTrials: () => void;
   onSyncPending: () => void;
   isSyncing: boolean;
 }
@@ -26,12 +27,14 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   levels,
   hasWebhook,
   onDeleteTrial,
+  onClearAllTrials,
   onSyncPending,
   isSyncing,
 }) => {
   const [filterDog, setFilterDog] = useState<string>('all');
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [filterOutcome, setFilterOutcome] = useState<string>('all');
+  const [confirmClearAll, setConfirmClearAll] = useState<boolean>(false);
 
   const dogsMap = useMemo(() => new Map(dogs.map((d) => [d.id, d])), [dogs]);
   const levelsMap = useMemo(() => new Map(levels.map((l) => [l.id, l])), [levels]);
@@ -71,9 +74,44 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 
       {/* Filtros */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs space-y-2.5">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-          <Filter className="w-3.5 h-3.5 text-[#FA963D]" />
-          <span>Filtrar historial ({filteredTrials.length} de {trials.length})</span>
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 font-bold text-slate-800">
+            <Filter className="w-3.5 h-3.5 text-[#FA963D]" />
+            <span>Filtrar historial ({filteredTrials.length} de {trials.length})</span>
+          </div>
+
+          {trials.length > 0 && (
+            confirmClearAll ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearAllTrials();
+                    setConfirmClearAll(false);
+                  }}
+                  className="px-2 py-0.5 rounded-lg bg-rose-600 text-white text-[11px] font-bold"
+                >
+                  Confirmar vaciado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearAll(false)}
+                  className="text-[11px] text-slate-500 font-medium"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmClearAll(true)}
+                className="text-[11px] text-rose-600 hover:underline flex items-center gap-1 font-semibold"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Vaciar registros</span>
+              </button>
+            )
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-2">

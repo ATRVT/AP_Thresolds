@@ -2,10 +2,10 @@ import { Trial, Dog, SheetsConfig } from '../types';
 import { OFFICIAL_DILUTION_TABLE, DEFAULT_WEBHOOK_URL } from '../constants/dilutions';
 
 const STORAGE_KEYS = {
-  TRIALS: 'canine_thresholds_trials_v2',
+  TRIALS: 'canine_thresholds_trials_v3',
   DOGS: 'canine_thresholds_dogs_v2',
   SHEETS_CONFIG: 'canine_thresholds_sheets_config_v2',
-  SESSION_DEFAULTS: 'canine_thresholds_session_defaults_v2',
+  SESSION_DEFAULTS: 'canine_thresholds_session_defaults_v3',
 };
 
 const DEFAULT_DOGS: Dog[] = [
@@ -70,6 +70,9 @@ export function saveDogs(dogs: Dog[]): void {
 
 export function loadTrials(): Trial[] {
   try {
+    // Limpiar versiones anteriores de pruebas
+    localStorage.removeItem('canine_thresholds_trials_v2');
+    localStorage.removeItem('canine_thresholds_session_defaults_v2');
     const raw = localStorage.getItem(STORAGE_KEYS.TRIALS);
     if (!raw) return [];
     return JSON.parse(raw);
