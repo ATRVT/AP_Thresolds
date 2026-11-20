@@ -4,6 +4,8 @@ export interface DilutionLevel {
   theoreticalRatio: string;
   ratioValue: number;
   stepIndex: number;
+  unitLabel?: string;
+  unitBoldOption?: string;
 }
 
 export type ResultOutcome = 'VP' | 'FP' | 'VN' | 'FN';

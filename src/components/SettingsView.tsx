@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SheetsConfig, Dog, Trial, DilutionLevel } from '../types';
 import {
   exportTrialsToCSV,
@@ -20,13 +20,16 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Smartphone,
+  Microscope,
 } from 'lucide-react';
 
 interface SettingsViewProps {
   config: SheetsConfig;
   onSaveConfig: (config: SheetsConfig) => void;
   dogs: Dog[];
-  onSaveDogs: (dogs: Dog[]) => void;
+  onSaveDogs: (dogs: Dog[], activeDogId?: string) => void;
   trials: Trial[];
   onUpdateTrials: (trials: Trial[]) => void;
   levels: DilutionLevel[];
@@ -49,11 +52,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [showAdvancedConfig, setShowAdvancedConfig] = useState<boolean>(false);
 
-  // Formulario nuevo perro
+  // Gestión de perros (añadir y editar sin bloqueos de navegador)
   const [newDogName, setNewDogName] = useState<string>('');
   const [newDogHandler, setNewDogHandler] = useState<string>('');
   const [newDogBreed, setNewDogBreed] = useState<string>('');
   const [showAddDog, setShowAddDog] = useState<boolean>(false);
+  const [editingDogId, setEditingDogId] = useState<string | null>(null);
+  const [confirmDeleteDogId, setConfirmDeleteDogId] = useState<string | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState<boolean>(false);
+
+  // Soporte de instalación PWA en Android / Chrome
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    setDeferredPrompt(null);
+  };
 
   const handleSaveSheetsConfig = () => {
     onSaveConfig({
@@ -100,48 +125,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     }
   };
 
-  const handleAddDog = (e: React.FormEvent) => {
+  const handleStartEditDog = (dog: Dog) => {
+    setEditingDogId(dog.id);
+    setNewDogName(dog.name);
+    setNewDogBreed(dog.breed || '');
+    setNewDogHandler(dog.handlerDefault || '');
+    setShowAddDog(true);
+  };
+
+  const handleStartNewDog = () => {
+    setEditingDogId(null);
+    setNewDogName('');
+    setNewDogBreed('');
+    setNewDogHandler('');
+    setShowAddDog(!showAddDog);
+  };
+
+  const handleSaveDogForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDogName.trim()) return;
 
-    const newDog: Dog = {
-      id: 'dog-' + Date.now(),
-      name: newDogName.trim(),
-      handlerDefault: newDogHandler.trim() || undefined,
-      breed: newDogBreed.trim() || undefined,
-    };
+    if (editingDogId) {
+      const updated = dogs.map((d) =>
+        d.id === editingDogId
+          ? {
+              ...d,
+              name: newDogName.trim(),
+              breed: newDogBreed.trim() || undefined,
+              handlerDefault: newDogHandler.trim() || undefined,
+            }
+          : d
+      );
+      onSaveDogs(updated, editingDogId);
+    } else {
+      const newDog: Dog = {
+        id: 'dog-' + Date.now(),
+        name: newDogName.trim(),
+        handlerDefault: newDogHandler.trim() || undefined,
+        breed: newDogBreed.trim() || undefined,
+      };
+      const updated = [...dogs, newDog];
+      onSaveDogs(updated, newDog.id);
+    }
 
-    const updated = [...dogs, newDog];
-    onSaveDogs(updated);
     setNewDogName('');
     setNewDogHandler('');
     setNewDogBreed('');
+    setEditingDogId(null);
     setShowAddDog(false);
   };
 
-  const handleDeleteDog = (dogId: string) => {
-    if (dogs.length <= 1) {
-      alert('Debe existir al menos un perro registrado.');
-      return;
-    }
-    if (confirm('¿Eliminar este perro del registro?')) {
-      onSaveDogs(dogs.filter((d) => d.id !== dogId));
+  const handleExecuteDeleteDog = (dogId: string) => {
+    const remaining = dogs.filter((d) => d.id !== dogId);
+    setConfirmDeleteDogId(null);
+    onSaveDogs(remaining, remaining[0]?.id);
+    if (remaining.length === 0) {
+      setEditingDogId(null);
+      setNewDogName('');
+      setNewDogBreed('');
+      setNewDogHandler('');
+      setShowAddDog(true);
     }
   };
 
   const handleLoadSample = () => {
-    if (confirm('¿Deseas cargar 20 pasadas organizadas en bloques de 10 rondas para probar la app?')) {
-      const sample = loadSampleTrials();
-      onUpdateTrials(sample);
-      alert('Datos de prueba cargados. Puedes explorar las métricas y curvas en la pestaña de análisis.');
-    }
+    const sample = loadSampleTrials();
+    onUpdateTrials(sample);
   };
 
   const handleClearAll = () => {
-    if (confirm('¿Estás seguro de que deseas borrar permanentemente todas las pasadas? Esta acción no se puede deshacer.')) {
-      onUpdateTrials([]);
-      alert('Historial borrado.');
-    }
+    onUpdateTrials([]);
+    setConfirmClearAll(false);
   };
 
   const appsScriptCode = `function doPost(e) {
@@ -184,8 +238,198 @@ function doGet(e) {
   };
 
   return (
-    <div className="space-y-3.5 pb-24 max-w-xl mx-auto px-3.5">
-      {/* Sección 1: Conexión con Google Sheets */}
+    <div className="space-y-3 pb-24 max-w-xl mx-auto px-3">
+      {/* Sección 1: Gestión de perros (sin bloqueos y con edición directa) */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-slate-900">
+            Perros registrados ({dogs.length})
+          </h3>
+
+          <button
+            type="button"
+            onClick={handleStartNewDog}
+            className="px-2.5 py-1 rounded-lg bg-[#108BF7]/10 text-[#108BF7] hover:bg-[#108BF7]/20 text-xs flex items-center gap-1 font-bold transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Añadir perro</span>
+          </button>
+        </div>
+
+        {(showAddDog || dogs.length === 0) && (
+          <form
+            onSubmit={handleSaveDogForm}
+            className="p-3 bg-[#F3F5F2] rounded-xl border border-slate-200 space-y-2.5 text-xs"
+          >
+            <h4 className="font-bold text-slate-900">
+              {editingDogId ? 'Editar datos del perro' : 'Registrar nuevo perro'}
+            </h4>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                Nombre del perro *
+              </label>
+              <input
+                type="text"
+                required
+                value={newDogName}
+                onChange={(e) => setNewDogName(e.target.value)}
+                placeholder="Ej. K'at"
+                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none focus:border-[#108BF7]"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                  Raza (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={newDogBreed}
+                  onChange={(e) => setNewDogBreed(e.target.value)}
+                  placeholder="Ej. Sprocker"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-900 focus:outline-none focus:border-[#108BF7]"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">
+                  Guía habitual
+                </label>
+                <input
+                  type="text"
+                  value={newDogHandler}
+                  onChange={(e) => setNewDogHandler(e.target.value)}
+                  placeholder="Ej. Carlos"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-900 focus:outline-none focus:border-[#108BF7]"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              {dogs.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddDog(false);
+                    setEditingDogId(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs font-medium"
+                >
+                  Cancelar
+                </button>
+              )}
+              <button
+                type="submit"
+                className="px-3.5 py-1.5 rounded-lg bg-[#30E674] hover:bg-[#28c764] text-slate-950 font-bold text-xs shadow-xs"
+              >
+                {editingDogId ? 'Guardar cambios' : 'Guardar perro'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="space-y-2">
+          {dogs.map((dog) => (
+            <div
+              key={dog.id}
+              className="flex items-center justify-between p-2.5 rounded-xl bg-[#F3F5F2] border border-slate-200/80 text-xs"
+            >
+              <div>
+                <span className="font-bold text-slate-900 text-sm">{dog.name}</span>
+                {dog.breed && (
+                  <span className="text-slate-500 text-[11px] ml-1.5">
+                    ({dog.breed})
+                  </span>
+                )}
+                {dog.handlerDefault && (
+                  <span className="text-slate-500 text-[10px] block mt-0.5">
+                    Guía: {dog.handlerDefault}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleStartEditDog(dog)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:text-[#108BF7] hover:bg-white transition-colors"
+                  title="Editar perro"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+
+                {confirmDeleteDogId === dog.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleExecuteDeleteDog(dog.id)}
+                      className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[10px] font-bold"
+                    >
+                      Borrar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteDogId(null)}
+                      className="px-1.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 text-[10px]"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteDogId(dog.id)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white transition-colors"
+                    title="Eliminar perro"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sección 2: Instalar icono en el celular */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-[#108BF7] flex items-center justify-center shadow-sm shrink-0">
+            <Microscope className="w-6 h-6 text-[#F3F5F2] stroke-[2.2]" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <span>Icono de la app en tu celular</span>
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              Acceso directo en pantalla de inicio y guardado permanente
+            </p>
+          </div>
+        </div>
+
+        {deferredPrompt && (
+          <button
+            type="button"
+            onClick={handleInstallPWA}
+            className="w-full py-2.5 px-3 rounded-xl bg-[#108BF7] hover:bg-[#0d78d6] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>Instalar aplicación en el celular</span>
+          </button>
+        )}
+
+        <div className="p-3 rounded-xl bg-[#F3F5F2] border border-slate-200/80 text-[11px] text-slate-600 space-y-1.5 leading-relaxed">
+          <p className="font-bold text-slate-800">
+            Cómo añadir el icono azul en el teléfono del equipo:
+          </p>
+          <p>
+            • <b>En iPhone (Safari):</b> Abre el enlace en <b>Safari</b> (no dentro de WhatsApp), pulsa el botón <b>Compartir</b> y elige <b>«Añadir a pantalla de inicio»</b>.
+          </p>
+          <p>
+            • <b>En Android (Chrome):</b> Abre el enlace en <b>Chrome</b>, toca el menú <b>⋮</b> (arriba a la derecha) y pulsa <b>«Instalar aplicación»</b> o <b>«Añadir a pantalla de inicio»</b>.
+          </p>
+        </div>
+      </div>
+
+      {/* Sección 3: Conexión con Google Sheets */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -205,7 +449,7 @@ function doGet(e) {
         </div>
 
         <p className="text-xs text-slate-600 leading-relaxed">
-          La vinculación con la hoja de cálculo central de Google Sheets está integrada en el código y protegida para evitar modificaciones accidentales por parte de los entrenadores.
+          La vinculación con la hoja de cálculo central de Google Sheets está integrada en el código y protegida para evitar modificaciones accidentales.
         </p>
 
         <div className="flex items-center justify-between text-xs pt-0.5">
@@ -265,7 +509,7 @@ function doGet(e) {
           </button>
 
           {showAdvancedConfig && (
-            <div className="mt-3 space-y-3 pt-3 border-t border-dashed border-slate-200 animate-in fade-in">
+            <div className="mt-3 space-y-3 pt-3 border-t border-dashed border-slate-200">
               <div>
                 <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
                   Dirección del webhook de Google Apps Script:
@@ -298,7 +542,7 @@ function doGet(e) {
               </div>
 
               {showAppsScriptGuide && (
-                <div className="p-3 rounded-xl bg-[#F3F5F2] border border-slate-200 text-xs space-y-2 animate-in fade-in">
+                <div className="p-3 rounded-xl bg-[#F3F5F2] border border-slate-200 text-xs space-y-2">
                   <h4 className="font-bold text-slate-900 text-[11px]">
                     Configuración de Apps Script:
                   </h4>
@@ -323,109 +567,7 @@ function doGet(e) {
         </div>
       </div>
 
-      {/* Sección 2: Gestión de perros */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <span>Perros registrados ({dogs.length})</span>
-          </h3>
-
-          <button
-            type="button"
-            onClick={() => setShowAddDog(!showAddDog)}
-            className="text-xs text-[#108BF7] hover:underline flex items-center gap-1 font-bold"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nuevo perro</span>
-          </button>
-        </div>
-
-        {showAddDog && (
-          <form onSubmit={handleAddDog} className="p-3 bg-[#F3F5F2] rounded-xl border border-slate-200 space-y-2 text-xs animate-in fade-in">
-            <h4 className="font-bold text-slate-900">Añadir perro al equipo</h4>
-            <div>
-              <label className="text-[10px] text-slate-500 block mb-0.5">Nombre del perro *</label>
-              <input
-                type="text"
-                required
-                value={newDogName}
-                onChange={(e) => setNewDogName(e.target.value)}
-                placeholder="Ej. Kira"
-                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] text-slate-500 block mb-0.5">Raza (opcional)</label>
-                <input
-                  type="text"
-                  value={newDogBreed}
-                  onChange={(e) => setNewDogBreed(e.target.value)}
-                  placeholder="Ej. Malinois"
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-900"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] text-slate-500 block mb-0.5">Guía habitual</label>
-                <input
-                  type="text"
-                  value={newDogHandler}
-                  onChange={(e) => setNewDogHandler(e.target.value)}
-                  placeholder="Ej. Carlos"
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-slate-900"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setShowAddDog(false)}
-                className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 text-xs"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-3 py-1 rounded-lg bg-[#30E674] text-slate-950 font-bold text-xs shadow-xs"
-              >
-                Guardar perro
-              </button>
-            </div>
-          </form>
-        )}
-
-        <div className="space-y-2">
-          {dogs.map((dog) => (
-            <div
-              key={dog.id}
-              className="flex items-center justify-between p-2.5 rounded-xl bg-[#F3F5F2] border border-slate-200 text-xs"
-            >
-              <div>
-                <span className="font-bold text-slate-900 text-sm">{dog.name}</span>
-                <span className="text-slate-500 text-[11px] ml-2">
-                  {dog.breed || 'Sin raza especificada'}
-                </span>
-                {dog.handlerDefault && (
-                  <span className="text-slate-600 text-[10px] block mt-0.5">
-                    Guía predeterminado: {dog.handlerDefault}
-                  </span>
-                )}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => handleDeleteDog(dog.id)}
-                className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                title="Eliminar perro"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Sección 3: Exportación y respaldo */}
+      {/* Sección 4: Exportación y respaldo */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3">
         <h3 className="text-sm font-bold text-slate-900">Exportación y respaldo</h3>
         <p className="text-[11px] text-slate-500">
@@ -461,38 +603,51 @@ function doGet(e) {
             <span>Cargar datos de prueba</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleClearAll}
-            className="text-xs text-rose-600 hover:underline flex items-center gap-1"
-          >
-            <Trash2 className="w-3 h-3" />
-            <span>Borrar historial</span>
-          </button>
+          {confirmClearAll ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="px-2 py-0.5 rounded bg-rose-600 text-white text-[11px] font-bold"
+              >
+                Confirmar borrado
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmClearAll(false)}
+                className="text-[11px] text-slate-500"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmClearAll(true)}
+              className="text-xs text-rose-600 hover:underline flex items-center gap-1"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Borrar historial</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Sección 4: Criterios de evaluación por bloques */}
+      {/* Sección 5: Criterios de evaluación por bloques */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-2.5 text-xs text-slate-700">
         <h3 className="font-bold text-slate-900 flex items-center gap-1.5 text-sm">
           <BookOpen className="w-4 h-4 text-[#FA963D]" />
           <span>Criterios de evaluación y umbrales</span>
         </h3>
-        <p className="text-[11px] leading-relaxed text-slate-600">
-          La evaluación se organiza en <b>bloques de 10 rondas</b> por nivel de dilución para determinar el umbral de detección:
-        </p>
         <ul className="space-y-1.5 text-[11px] text-slate-600">
           <li>
-            • <b>Aprobación del bloque:</b> Se requiere un mínimo de <b>8 aciertos en 10 rondas (≥ 80%)</b> para considerar superado el nivel.
+            • <b>Aprobación del bloque:</b> Mínimo de <b>8 aciertos en 10 rondas (≥ 80%)</b> para superar el nivel.
           </li>
           <li>
-            • <b>Umbral operativo confiable:</b> La dilución más baja donde el perro mantiene sensibilidad ≥ 80% y especificidad ≥ 85%.
+            • <b>Umbral operativo confiable:</b> La dilución más baja con sensibilidad ≥ 80% y especificidad ≥ 85%.
           </li>
           <li>
-            • <b>Umbral límite sensorial:</b> La dilución donde la tasa de acierto cae al rango de 15% a 30% (zona de azar puro con 8 soportes = 12.5%).
-          </li>
-          <li>
-            • <b>Criterio de exclusión:</b> Si la especificidad cae por debajo del 70%, el perro está adivinando en los controles y requiere pausar el ensayo.
+            • <b>Umbral límite sensorial:</b> La dilución donde el acierto cae al rango de 15% a 30% (azar con 8 soportes = 12.5%).
           </li>
         </ul>
       </div>

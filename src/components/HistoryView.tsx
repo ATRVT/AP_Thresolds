@@ -102,7 +102,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
             <option value="all">Todos los niveles</option>
             {levels.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.name}
+                {l.name} ({l.theoreticalRatio}{l.unitBoldOption ? ` • ${l.unitBoldOption}` : ''})
               </option>
             ))}
           </select>
@@ -160,6 +160,9 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                       </span>
                       <span className="text-xs font-semibold text-[#108BF7]">
                         {level ? level.name : trial.dilutionId}
+                        {level?.unitLabel && (
+                          <b className="font-black text-slate-900 ml-1">({level.unitLabel})</b>
+                        )}
                       </span>
                       {trial.blockNumber && (
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">

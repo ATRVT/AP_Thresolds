@@ -160,6 +160,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
               </div>
               <div className="text-[11px] text-slate-500">
                 {thresholdAnalysis.reliableThresholdLevel.theoreticalRatio}
+                {thresholdAnalysis.reliableThresholdLevel.unitLabel && (
+                  <b className="font-black text-slate-900 ml-1">
+                    ({thresholdAnalysis.reliableThresholdLevel.unitLabel})
+                  </b>
+                )}
               </div>
             </div>
           ) : (
@@ -181,6 +186,11 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
               </div>
               <div className="text-[11px] text-slate-500">
                 {thresholdAnalysis.sensoryLimitLevel.theoreticalRatio}
+                {thresholdAnalysis.sensoryLimitLevel.unitLabel && (
+                  <b className="font-black text-slate-900 ml-1">
+                    ({thresholdAnalysis.sensoryLimitLevel.unitLabel})
+                  </b>
+                )}
               </div>
             </div>
           ) : (
@@ -236,7 +246,14 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
                     <div>
                       <span className="font-bold text-slate-900">{summary.level.name}</span>
                       <span className="text-[11px] text-slate-500 ml-1.5">
-                        ({summary.level.theoreticalRatio})
+                        ({summary.level.theoreticalRatio}
+                        {summary.level.unitLabel && (
+                          <>
+                            {' • '}
+                            <b className="font-black text-slate-900">{summary.level.unitLabel}</b>
+                          </>
+                        )}
+                        )
                       </span>
                     </div>
                     <span

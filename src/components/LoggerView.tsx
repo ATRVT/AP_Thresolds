@@ -246,8 +246,13 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
 
           {/* Nivel de dilución */}
           <div>
-            <label className="text-[10px] font-bold text-slate-400 block mb-0.5">
-              Nivel de dilución
+            <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between mb-0.5">
+              <span>Nivel de dilución</span>
+              {activeLevel.unitLabel && (
+                <b className="font-black text-[#108BF7] bg-[#108BF7]/10 px-1.5 rounded">
+                  {activeLevel.unitLabel}
+                </b>
+              )}
             </label>
             <select
               value={sessionDefaults.dilutionId}
@@ -257,7 +262,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
             >
               {levels.map((lvl) => (
                 <option key={lvl.id} value={lvl.id}>
-                  {lvl.name} ({lvl.theoreticalRatio})
+                  {lvl.name} ({lvl.theoreticalRatio}{lvl.unitBoldOption ? ` • ${lvl.unitBoldOption}` : ''})
                 </option>
               ))}
             </select>

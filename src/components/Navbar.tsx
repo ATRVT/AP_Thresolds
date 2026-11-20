@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, BarChart3, History, Settings, Cloud, CloudOff } from 'lucide-react';
+import { Target, BarChart3, History, Settings, Cloud, CloudOff, Microscope } from 'lucide-react';
 
 export type TabType = 'logger' | 'analytics' | 'history' | 'settings';
 
@@ -28,11 +28,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Barra superior */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2.5 safe-area-top">
         <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FA963D] to-[#30E674] p-0.5 flex items-center justify-center">
-              <div className="w-full h-full bg-[#F3F5F2] rounded-[10px] flex items-center justify-center text-sm">
-                🐾
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-[#108BF7] flex items-center justify-center shadow-xs">
+              <Microscope className="w-4 h-4 text-[#F3F5F2] stroke-[2.3]" />
             </div>
             <h1 className="text-sm font-bold tracking-tight text-slate-900">
               Umbrales olfativos

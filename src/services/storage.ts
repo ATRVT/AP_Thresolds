@@ -9,10 +9,11 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_DOGS: Dog[] = [
-  { id: 'dog-1', name: 'Kira', handlerDefault: 'Carlos', breed: 'Pastor belga malinois' },
-  { id: 'dog-2', name: 'Thor', handlerDefault: 'Laura', breed: 'Labrador retriever' },
-  { id: 'dog-3', name: 'Max', handlerDefault: 'Carlos', breed: 'Pastor alemán' },
+  { id: 'dog-kat', name: "K'at", handlerDefault: 'Carlos', breed: 'Sprocker' },
 ];
+
+const LEGACY_DEMO_IDS = new Set(['dog-1', 'dog-2', 'dog-3']);
+const LEGACY_DEMO_NAMES = new Set(['Kira', 'Thor', 'Max']);
 
 export interface SessionDefaults {
   dogId: string;
@@ -39,7 +40,20 @@ export function loadDogs(): Dog[] {
       saveDogs(DEFAULT_DOGS);
       return DEFAULT_DOGS;
     }
-    return JSON.parse(raw);
+    const parsed: Dog[] = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      saveDogs(DEFAULT_DOGS);
+      return DEFAULT_DOGS;
+    }
+    // Limpiar automáticamente los perros de demostración antiguos (Kira, Thor, Max)
+    const cleaned = parsed.filter(
+      (d) => !(LEGACY_DEMO_IDS.has(d.id) && LEGACY_DEMO_NAMES.has(d.name))
+    );
+    const finalDogs = cleaned.length > 0 ? cleaned : DEFAULT_DOGS;
+    if (cleaned.length !== parsed.length || finalDogs !== parsed) {
+      saveDogs(finalDogs);
+    }
+    return finalDogs;
   } catch (e) {
     console.error('Error al cargar perros:', e);
     return DEFAULT_DOGS;
@@ -129,6 +143,8 @@ export function loadSessionDefaults(): SessionDefaults {
   const today = getTodayDateString();
   const hour = new Date().getHours();
   const turn: 'Mañana' | 'Tarde' = hour < 14 ? 'Mañana' : 'Tarde';
+  const dogs = loadDogs();
+  const firstDog = dogs[0];
 
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.SESSION_DEFAULTS);
@@ -137,21 +153,25 @@ export function loadSessionDefaults(): SessionDefaults {
       const validDilution = OFFICIAL_DILUTION_TABLE.some((l) => l.id === parsed.dilutionId)
         ? parsed.dilutionId
         : OFFICIAL_DILUTION_TABLE[0].id;
-      return {
+      const validDog = dogs.find((d) => d.id === parsed.dogId) || firstDog;
+      const updatedDefaults: SessionDefaults = {
         ...parsed,
+        dogId: validDog?.id || 'dog-kat',
+        handler: validDog?.handlerDefault || parsed.handler || 'Carlos',
         dilutionId: validDilution,
         sessionDate: today,
         sessionTurn: turn,
       };
+      saveSessionDefaults(updatedDefaults);
+      return updatedDefaults;
     }
   } catch (e) {
     // ignore
   }
 
-  const dogs = loadDogs();
   return {
-    dogId: dogs[0]?.id || 'dog-1',
-    handler: dogs[0]?.handlerDefault || 'Carlos',
+    dogId: firstDog?.id || 'dog-kat',
+    handler: firstDog?.handlerDefault || 'Carlos',
     judge: 'Juez ciego 1',
     sessionDate: today,
     sessionTurn: turn,

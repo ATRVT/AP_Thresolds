@@ -28,6 +28,8 @@ export const OFFICIAL_DILUTION_TABLE: DilutionLevel[] = [
     theoreticalRatio: '1 : 1.000.000',
     ratioValue: 1_000_000,
     stepIndex: 4,
+    unitLabel: '1ppm',
+    unitBoldOption: '𝟭𝗽𝗽𝗺',
   },
   {
     id: 'lvl-3.5',
@@ -70,6 +72,8 @@ export const OFFICIAL_DILUTION_TABLE: DilutionLevel[] = [
     theoreticalRatio: '1 : 1.000.000.000',
     ratioValue: 1_000_000_000,
     stepIndex: 10,
+    unitLabel: '1ppb',
+    unitBoldOption: '𝟭𝗽𝗽𝗯',
   },
   {
     id: 'lvl-6.5',
@@ -112,6 +116,8 @@ export const OFFICIAL_DILUTION_TABLE: DilutionLevel[] = [
     theoreticalRatio: '1 : 1.000.000.000.000',
     ratioValue: 1_000_000_000_000,
     stepIndex: 16,
+    unitLabel: '1ppt',
+    unitBoldOption: '𝟭𝗽𝗽𝘁',
   },
 ];
 

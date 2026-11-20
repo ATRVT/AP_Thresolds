@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Navbar, TabType } from './components/Navbar';
 import { LoggerView } from './components/LoggerView';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -24,25 +24,12 @@ import { syncTrialsToWebhook } from './services/sheetsSync';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('logger');
-  const [dogs, setDogs] = useState<Dog[]>([]);
-  const [trials, setTrials] = useState<Trial[]>([]);
+  const [dogs, setDogs] = useState<Dog[]>(() => loadDogs());
+  const [trials, setTrials] = useState<Trial[]>(() => loadTrials());
   const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig>(() => loadSheetsConfig());
-  const [sessionDefaults, setSessionDefaults] = useState<SessionDefaults | null>(null);
+  const [sessionDefaults, setSessionDefaults] = useState<SessionDefaults>(() => loadSessionDefaults());
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  // Carga inicial
-  useEffect(() => {
-    const loadedDogs = loadDogs();
-    const loadedTrials = loadTrials();
-    const loadedConfig = loadSheetsConfig();
-    const loadedDefaults = loadSessionDefaults();
-
-    setDogs(loadedDogs);
-    setTrials(loadedTrials);
-    setSheetsConfig(loadedConfig);
-    setSessionDefaults(loadedDefaults);
-  }, []);
 
   const pendingSyncCount = useMemo(
     () => trials.filter((t) => !t.syncedToSheets).length,
@@ -114,9 +101,27 @@ export const App: React.FC = () => {
     saveSessionDefaults(newDefaults);
   };
 
-  const handleUpdateDogs = (newDogs: Dog[]) => {
+  const handleUpdateDogs = (newDogs: Dog[], activeDogId?: string) => {
     setDogs(newDogs);
     saveDogs(newDogs);
+
+    if (newDogs.length > 0 && sessionDefaults) {
+      const targetDog =
+        (activeDogId && newDogs.find((d) => d.id === activeDogId)) ||
+        newDogs.find((d) => d.id === sessionDefaults.dogId) ||
+        newDogs[newDogs.length - 1];
+
+      if (targetDog) {
+        const nextDefaults: SessionDefaults = {
+          ...sessionDefaults,
+          dogId: targetDog.id,
+          handler: targetDog.handlerDefault || sessionDefaults.handler,
+        };
+        setSessionDefaults(nextDefaults);
+        saveSessionDefaults(nextDefaults);
+      }
+    }
+    showToast('Registro de perros actualizado');
   };
 
   const handleUpdateConfig = (newConfig: SheetsConfig) => {
