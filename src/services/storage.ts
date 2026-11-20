@@ -1,5 +1,6 @@
 import { Trial, Dog, SheetsConfig } from '../types';
 import { OFFICIAL_DILUTION_TABLE, DEFAULT_WEBHOOK_URL } from '../constants/dilutions';
+import { evaluateBlockStatus } from '../utils/tdsMetrics';
 
 const STORAGE_KEYS = {
   TRIALS: 'canine_thresholds_trials_v3',
@@ -192,23 +193,21 @@ export function saveSessionDefaults(defaults: SessionDefaults): void {
 }
 
 /**
- * Obtiene el número de bloque y número de ronda (1 al 10) para el perro y nivel actual
+ * Obtiene el progreso del bloque actual (1 al 10) para el perro y nivel actual.
+ * Si se indica targetBlockNumber (por ejemplo al iniciar un bloque nuevo),
+ * devuelve el estado limpio de ese bloque concreto sin arrastrar los resultados del anterior.
  */
-export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: string) {
+export function getBlockProgress(
+  trials: Trial[],
+  dogId: string,
+  dilutionId: string,
+  targetBlockNumber?: number
+) {
   const matchingTrials = trials
     .filter((t) => t.dogId === dogId && t.dilutionId === dilutionId)
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-  const countHits = (tList: Trial[]) =>
-    tList.filter(
-      (t) =>
-        t.resultOutcome === 'VP' ||
-        (t as any).resultTDS === 'VP' ||
-        t.resultOutcome === 'VN' ||
-        (t as any).resultTDS === 'VN'
-    ).length;
-
-  // Contar cuántos bloques de 10 completos en este nivel tienen >= 8 aciertos (>= 80%)
+  // Agrupar por bloque y evaluar con la regla unificada (exactitud ≥ 80% y sensibilidad ≥ 80%)
   const blockMap = new Map<number, Trial[]>();
   for (const t of matchingTrials) {
     const bNum = t.blockNumber || 1;
@@ -218,7 +217,7 @@ export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: str
 
   let passedBlocksCount = 0;
   for (const [, bTrials] of blockMap) {
-    if (bTrials.length >= 10 && countHits(bTrials.slice(0, 10)) >= 8) {
+    if (evaluateBlockStatus(bTrials).passed) {
       passedBlocksCount++;
     }
   }
@@ -226,43 +225,48 @@ export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: str
   const isLevelMastered = passedBlocksCount >= 2;
 
   if (matchingTrials.length === 0) {
+    const initialBlock = targetBlockNumber || 1;
     return {
-      blockNumber: 1,
+      blockNumber: initialBlock,
       roundInBlock: 1,
       trialsInCurrentBlock: [] as Trial[],
       isBlockComplete: false,
       blockHits: 0,
+      blockPassed: false,
+      blockSensitivity: null as number | null,
       passedBlocksCount: 0,
       isLevelMastered: false,
     };
   }
 
-  // Obtenemos el último bloque registrado
+  // Si se fuerza un bloque específico (ej. al pulsar "Iniciar nuevo bloque"), usamos ese
   const lastTrial = matchingTrials[matchingTrials.length - 1];
-  const lastBlockNum = lastTrial.blockNumber || 1;
+  const activeBlockNum = targetBlockNumber ?? (lastTrial.blockNumber || 1);
 
-  const currentBlockTrials = matchingTrials.filter((t) => (t.blockNumber || 1) === lastBlockNum);
+  const currentBlockTrials = blockMap.get(activeBlockNum) || [];
+  const evalStatus = evaluateBlockStatus(currentBlockTrials);
 
   if (currentBlockTrials.length < 10) {
-    const blockHits = countHits(currentBlockTrials);
     return {
-      blockNumber: lastBlockNum,
+      blockNumber: activeBlockNum,
       roundInBlock: currentBlockTrials.length + 1,
       trialsInCurrentBlock: currentBlockTrials,
       isBlockComplete: false,
-      blockHits,
+      blockHits: evalStatus.hits,
+      blockPassed: false,
+      blockSensitivity: evalStatus.metrics.sensitivity,
       passedBlocksCount,
       isLevelMastered,
     };
   } else {
-    // El bloque anterior llegó a 10
-    const blockHits = countHits(currentBlockTrials);
     return {
-      blockNumber: lastBlockNum,
+      blockNumber: activeBlockNum,
       roundInBlock: 10,
-      trialsInCurrentBlock: currentBlockTrials,
+      trialsInCurrentBlock: currentBlockTrials.slice(0, 10),
       isBlockComplete: true,
-      blockHits,
+      blockHits: evalStatus.hits,
+      blockPassed: evalStatus.passed,
+      blockSensitivity: evalStatus.metrics.sensitivity,
       passedBlocksCount,
       isLevelMastered,
     };

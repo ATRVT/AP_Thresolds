@@ -40,6 +40,19 @@ export function formatTrialForSheet(
 }
 
 /**
+ * Ordena las pasadas cronológicamente (ronda 1 -> ronda 10)
+ */
+function sortTrialsChronologically(trials: Trial[]): Trial[] {
+  return [...trials].sort((a, b) => {
+    const timeDiff = new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+    if (timeDiff !== 0) return timeDiff;
+    const blockDiff = (a.blockNumber || 1) - (b.blockNumber || 1);
+    if (blockDiff !== 0) return blockDiff;
+    return (a.roundInBlock || 1) - (b.roundInBlock || 1);
+  });
+}
+
+/**
  * Envía una lista de pasadas al Webhook de Google Apps Script
  */
 export async function syncTrialsToWebhook(
@@ -58,7 +71,8 @@ export async function syncTrialsToWebhook(
   const dogsMap = new Map(dogs.map((d) => [d.id, d]));
   const levelsMap = new Map(levels.map((l) => [l.id, l]));
 
-  const rows = trials.map((t) => formatTrialForSheet(t, dogsMap, levelsMap));
+  const orderedTrials = sortTrialsChronologically(trials);
+  const rows = orderedTrials.map((t) => formatTrialForSheet(t, dogsMap, levelsMap));
 
   try {
     const response = await fetch(webhookUrl.trim(), {
@@ -72,18 +86,52 @@ export async function syncTrialsToWebhook(
       }),
     });
 
-    if (response.type === 'opaque' || response.ok) {
+    if (response.type === 'opaque') {
       return {
         success: true,
-        message: `Sincronizadas ${rows.length} pasadas exitosamente con Google Sheets.`,
+        message: `Sincronizadas ${rows.length} pasadas con Google Sheets.`,
         count: rows.length,
       };
     }
 
     const text = await response.text();
+    if (!response.ok) {
+      return {
+        success: false,
+        message: `Error HTTP ${response.status}: ${text.slice(0, 120)}`,
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed.status === 'error') {
+        return {
+          success: false,
+          message: `Error en Google Sheets: ${parsed.message || 'Error desconocido'}`,
+        };
+      }
+      if (parsed.status === 'success' || parsed.status === 'online') {
+        const insertedCount = typeof parsed.inserted === 'number' ? parsed.inserted : rows.length;
+        return {
+          success: true,
+          message: `Sincronizadas ${insertedCount} pasadas exitosamente con Google Sheets.`,
+          count: insertedCount,
+        };
+      }
+    } catch {
+      // Si Apps Script devolvió HTML de error/permisos en lugar de JSON
+      if (text.toLowerCase().includes('<html')) {
+        return {
+          success: false,
+          message: 'El script de Google devolvió una página HTML en lugar de JSON. Verifica los permisos ("Cualquiera").',
+        };
+      }
+    }
+
     return {
-      success: false,
-      message: `Respuesta del servidor: ${text.slice(0, 100)}`,
+      success: true,
+      message: `Sincronizadas ${rows.length} pasadas exitosamente con Google Sheets.`,
+      count: rows.length,
     };
   } catch (error: any) {
     console.error('Error al sincronizar con webhook:', error);
@@ -123,7 +171,7 @@ export function exportTrialsToCSV(
     'Notas',
   ];
 
-  const rows = trials.map((t) => {
+  const rows = sortTrialsChronologically(trials).map((t) => {
     const f = formatTrialForSheet(t, dogsMap, levelsMap);
     return [
       `"${f.ID_Perro}"`,

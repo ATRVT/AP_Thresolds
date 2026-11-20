@@ -144,6 +144,33 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
 export const computeTDSMetrics = computeThresholdMetrics;
 
 /**
+ * Evalúa si un bloque de 10 rondas cumple el criterio de superación (≥ 80%).
+ * Exige: bloque completo de 10 rondas, Exactitud (VP+VN) ≥ 80%,
+ * Sensibilidad en diana ≥ 80% (evita aprobar con 6/8 VP = 75% + 2 VN)
+ * y Especificidad ≥ 50% cuando haya falsos o blancos.
+ */
+export function evaluateBlockStatus(blockTrials: Trial[]) {
+  const sample = blockTrials.slice(0, 10);
+  const metrics = computeThresholdMetrics(sample);
+  const hits = metrics.vp + metrics.vn;
+  const isComplete = blockTrials.length >= 10;
+
+  const passed =
+    isComplete &&
+    metrics.accuracy >= 80 &&
+    metrics.sensitivity !== null &&
+    metrics.sensitivity >= 80 &&
+    (metrics.specificity === null || metrics.specificity >= 50);
+
+  return {
+    isComplete,
+    hits,
+    metrics,
+    passed,
+  };
+}
+
+/**
  * Agrupa las pasadas por nivel de dilución y calcula sus métricas individuales.
  */
 export function computeMetricsByLevel(
@@ -155,7 +182,7 @@ export function computeMetricsByLevel(
       const levelTrials = trials.filter((t) => t.dilutionId === level.id);
       const metrics = computeThresholdMetrics(levelTrials);
 
-      // Agrupar por perro y bloque para contar bloques de 10 con >= 80% (>= 8 aciertos) sin mezclar perros
+      // Agrupar por perro y bloque para contar bloques de 10 aprobados sin mezclar perros
       const passedByDog = new Map<string, number>();
       const blockMap = new Map<string, { dogId: string; trials: Trial[] }>();
       for (const t of levelTrials) {
@@ -165,14 +192,11 @@ export function computeMetricsByLevel(
       }
 
       for (const { dogId, trials: bTrials } of blockMap.values()) {
-        if (bTrials.length >= 10) {
-          const hits = bTrials.slice(0, 10).filter((t) => {
-            const out = getTrialOutcome(t);
-            return out === 'VP' || out === 'VN';
-          }).length;
-          if (hits >= 8) {
-            passedByDog.set(dogId, (passedByDog.get(dogId) || 0) + 1);
-          }
+        const sorted = [...bTrials].sort(
+          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+        if (evaluateBlockStatus(sorted).passed) {
+          passedByDog.set(dogId, (passedByDog.get(dogId) || 0) + 1);
         }
       }
 

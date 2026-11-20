@@ -1,4 +1,5 @@
 import type { Trial } from '../types';
+import { evaluateBlockStatus } from './tdsMetrics';
 
 export interface PlannedRound {
   roundNumber: number; // 1 a 10
@@ -7,12 +8,12 @@ export interface PlannedRound {
 }
 
 /**
- * Comprueba si el perro ha alcanzado al menos el 80% de aciertos en el bloque de Stock
+ * Comprueba si el perro ha superado al menos un bloque de 10 en Stock (≥ 80% aciertos y ≥ 80% sensibilidad)
  */
 export function hasDogMasteredStock(trials: Trial[], dogId: string): boolean {
-  const stockTrials = trials.filter(
-    (t) => t.dogId === dogId && t.dilutionId === 'stock'
-  );
+  const stockTrials = trials
+    .filter((t) => t.dogId === dogId && t.dilutionId === 'stock')
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   if (stockTrials.length < 10) return false;
 
@@ -25,17 +26,8 @@ export function hasDogMasteredStock(trials: Trial[], dogId: string): boolean {
   }
 
   for (const [, bTrials] of blockMap) {
-    if (bTrials.length >= 10) {
-      const hits = bTrials.slice(0, 10).filter(
-        (t) =>
-          t.resultOutcome === 'VP' ||
-          (t as any).resultTDS === 'VP' ||
-          t.resultOutcome === 'VN' ||
-          (t as any).resultTDS === 'VN'
-      ).length;
-      if (hits >= 8) {
-        return true;
-      }
+    if (evaluateBlockStatus(bTrials).passed) {
+      return true;
     }
   }
 

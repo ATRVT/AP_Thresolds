@@ -72,10 +72,15 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
   const requireBlanks = hasMasteredStock || sessionDefaults.dilutionId !== 'stock';
 
   // Progreso del bloque de 10 rondas
-  const blockProgress = getBlockProgress(trials, sessionDefaults.dogId, sessionDefaults.dilutionId);
-  const effectiveBlockNumber = forceNewBlockNumber || (blockProgress.isBlockComplete ? blockProgress.blockNumber + 1 : blockProgress.blockNumber);
-  const currentRoundNumber = blockProgress.isBlockComplete && !forceNewBlockNumber ? 10 : blockProgress.roundInBlock;
-  const isBlockFinished = blockProgress.isBlockComplete && !forceNewBlockNumber;
+  const blockProgress = getBlockProgress(
+    trials,
+    sessionDefaults.dogId,
+    sessionDefaults.dilutionId,
+    forceNewBlockNumber ?? undefined
+  );
+  const effectiveBlockNumber = blockProgress.blockNumber;
+  const currentRoundNumber = blockProgress.roundInBlock;
+  const isBlockFinished = blockProgress.isBlockComplete;
 
   // Plan pseudo-aleatorio balanceado para el bloque de 10 rondas
   const [blockPlan, setBlockPlan] = useState<PlannedRound[]>(() => generateBlockPlan(requireBlanks));
@@ -135,7 +140,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
       descText = 'Vacío (VN) • Rechazo correcto';
     }
 
-    const roundToSave = blockProgress.isBlockComplete && !forceNewBlockNumber ? 1 : currentRoundNumber;
+    const roundToSave = currentRoundNumber;
 
     const newTrial: Trial = {
       id: 'trial_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -208,15 +213,19 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
   };
 
   const handleStartNewBlock = () => {
-    setForceNewBlockNumber(effectiveBlockNumber + 1);
+    const maxExistingBlock = trials
+      .filter((t) => t.dogId === sessionDefaults.dogId && t.dilutionId === sessionDefaults.dilutionId)
+      .reduce((max, t) => Math.max(max, t.blockNumber || 1), 0);
+    setForceNewBlockNumber(maxExistingBlock + 1);
   };
 
   const handleAdvanceToNextLevel = () => {
     const currentIndex = levels.findIndex((l) => l.id === activeLevel.id);
     if (currentIndex < levels.length - 1) {
       const nextLevel = levels[currentIndex + 1];
+      const nextProgress = getBlockProgress(trials, sessionDefaults.dogId, nextLevel.id);
       onUpdateDefaults({ ...sessionDefaults, dilutionId: nextLevel.id });
-      setForceNewBlockNumber(1);
+      setForceNewBlockNumber(nextProgress.isBlockComplete ? nextProgress.blockNumber + 1 : null);
     }
   };
 
@@ -421,7 +430,19 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
         )}
 
         {/* RESUMEN AL COMPLETAR LAS 10 RONDAS */}
-        {isBlockFinished ? (
+        {isBlockFinished ? (() => {
+          const vpCount = blockProgress.trialsInCurrentBlock.filter(
+            (t) => t.resultOutcome === 'VP' || (t as any).resultTDS === 'VP'
+          ).length;
+          const vnCount = blockProgress.trialsInCurrentBlock.filter(
+            (t) => t.resultOutcome === 'VN' || (t as any).resultTDS === 'VN'
+          ).length;
+          const pendingTotal = trials.filter((t) => !t.syncedToSheets).length;
+          const isCurrentBlockSynced =
+            blockProgress.trialsInCurrentBlock.length > 0 &&
+            blockProgress.trialsInCurrentBlock.every((t) => t.syncedToSheets);
+
+          return (
           <div className="p-3 rounded-xl bg-[#F3F5F2] border border-[#FA963D]/40 text-xs space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -434,42 +455,49 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
                   blockProgress.isLevelMastered
                     ? 'bg-[#30E674] text-slate-950'
-                    : blockProgress.blockHits >= 8
+                    : blockProgress.blockPassed
                     ? 'bg-[#108BF7]/15 text-[#108BF7] border border-[#108BF7]/30'
                     : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}
               >
                 {blockProgress.isLevelMastered
                   ? 'Nivel superado (2/2 ≥ 80%)'
-                  : blockProgress.blockHits >= 8
-                  ? `1 de 2 bloques ≥ 80%`
-                  : `Bloque < 80% (${blockProgress.passedBlocksCount}/2)`}
+                  : blockProgress.blockPassed
+                  ? '1 de 2 bloques ≥ 80%'
+                  : `Bloque no superado (${blockProgress.passedBlocksCount}/2)`}
               </span>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
               {blockProgress.isLevelMastered
-                ? `Logró ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%). Ha completado 2 bloques de 10 con ≥ 80% en ${activeLevel.name} y ya puede avanzar al siguiente nivel.`
-                : blockProgress.blockHits >= 8
-                ? `¡Primer bloque superado con ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%)! Para superar ${activeLevel.name} se requieren 2 bloques de 10 con ≥ 80% (lleva 1 de 2). Inicia el segundo bloque.`
-                : `Obtuvo ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%). Para superar el nivel se requieren 2 bloques de 10 con al menos 80% (lleva ${blockProgress.passedBlocksCount} de 2).`}
+                ? `Logró ${blockProgress.blockHits}/10 aciertos (${vpCount} positivas VP, ${vnCount} vacío VN${blockProgress.blockSensitivity !== null ? `, sensibilidad ${blockProgress.blockSensitivity}%` : ''}). Ya completó 2 bloques válidos en ${activeLevel.name}.`
+                : blockProgress.blockPassed
+                ? `Primer bloque válido: ${blockProgress.blockHits}/10 aciertos (${vpCount} VP, ${vnCount} VN, sensibilidad ${blockProgress.blockSensitivity}%). Falta 1 bloque más con ≥ 80% para superar ${activeLevel.name}.`
+                : `Obtuvo ${blockProgress.blockHits}/10 aciertos (${vpCount} positivas VP, ${vnCount} vacío VN${blockProgress.blockSensitivity !== null ? `, sensibilidad ${blockProgress.blockSensitivity}%` : ''}). Necesita ≥ 80% de exactitud y ≥ 80% de sensibilidad en 2 bloques (lleva ${blockProgress.passedBlocksCount}/2).`}
             </p>
 
-            <button
-              type="button"
-              disabled={isSyncing}
-              onClick={onSyncPending}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#FA963D] hover:bg-[#e07a22] text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all"
-            >
-              <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>
-                {isSyncing
-                  ? 'Sincronizando sesión...'
-                  : hasWebhook
-                  ? 'Guardar y sincronizar sesión con Google Sheets'
-                  : 'Guardar sesión (conectar con Google Sheets)'}
-              </span>
-            </button>
+            {isCurrentBlockSynced && pendingTotal === 0 ? (
+              <div className="w-full py-2.5 px-4 rounded-xl bg-[#30E674]/20 border border-[#30E674]/50 text-[#15803d] font-bold text-xs flex items-center justify-center gap-2">
+                <Check className="w-4 h-4" />
+                <span>Sesión sincronizada en Google Sheets</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={isSyncing}
+                onClick={onSyncPending}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#FA963D] hover:bg-[#e07a22] text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all"
+              >
+                <Cloud className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>
+                  {isSyncing
+                    ? 'Sincronizando sesión...'
+                    : hasWebhook
+                    ? `Guardar y sincronizar con Google Sheets (${pendingTotal} pend.)`
+                    : 'Guardar sesión (conectar con Google Sheets)'}
+                </span>
+              </button>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-slate-200/80">
               <button
@@ -505,7 +533,8 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
               )}
             </div>
           </div>
-        ) : (
+          );
+        })() : (
           <>
             {/* PASO 1: Posición real limpia y compacta */}
             <div className="pt-2 border-t border-slate-100 space-y-2">

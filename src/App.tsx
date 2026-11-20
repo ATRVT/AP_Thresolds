@@ -65,6 +65,8 @@ export const App: React.FC = () => {
   };
 
   const handleSyncPending = async () => {
+    if (isSyncing) return;
+
     if (!sheetsConfig.webhookUrl) {
       setActiveTab('settings');
       showToast('Por favor, configura la dirección de Google Sheets primero.');
@@ -82,7 +84,8 @@ export const App: React.FC = () => {
       const result = await syncTrialsToWebhook(pending, dogs, OFFICIAL_DILUTION_TABLE, sheetsConfig.webhookUrl);
       if (result.success) {
         const pendingIds = new Set(pending.map((p) => p.id));
-        const updated = trials.map((t) => (pendingIds.has(t.id) ? { ...t, syncedToSheets: true } : t));
+        const currentTrials = loadTrials();
+        const updated = currentTrials.map((t) => (pendingIds.has(t.id) ? { ...t, syncedToSheets: true } : t));
         saveTrials(updated);
         setTrials(updated);
         showToast(`${pending.length} pasadas sincronizadas con Google Sheets`);
