@@ -45,11 +45,26 @@ export function getTrialOutcome(trial: Trial | any): ResultOutcome {
 /**
  * Calcula las métricas acumuladas a partir de una lista de pasadas.
  */
+const pct = (num: number, den: number): number => Math.round((num / den) * 1000) / 10;
+
+/**
+ * Determina si una ronda era en blanco (sin olor diana).
+ * VN siempre es ronda en blanco; VP y FN siempre son rondas con olor.
+ * FP puede darse en ambos tipos de ronda, por eso se usa el campo isBlank.
+ */
+function isBlankRound(trial: Trial | any, outcome: ResultOutcome): boolean {
+  if (outcome === 'VN') return true;
+  if (outcome === 'VP' || outcome === 'FN') return false;
+  return trial.isBlank === true || trial.realPosition === 0;
+}
+
 export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
   let vp = 0;
   let fp = 0;
   let vn = 0;
   let fn = 0;
+  let fpTarget = 0; // marcó un control en ronda con olor (también es un fallo de detección)
+  let fpBlank = 0; // marcó algo en ronda en blanco
 
   for (const trial of trials) {
     const outcome = getTrialOutcome(trial);
@@ -59,6 +74,8 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
         break;
       case 'FP':
         fp++;
+        if (isBlankRound(trial, outcome)) fpBlank++;
+        else fpTarget++;
         break;
       case 'VN':
         vn++;
@@ -70,20 +87,23 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
   }
 
   const totalTrials = trials.length;
-  const targetPresentTrials = vp + fn;
-  const targetAbsentTrials = vn + fp;
+  // Rondas con olor: VP + FN + falsos en ronda con olor
+  const targetPresentTrials = vp + fn + fpTarget;
+  // Denominador de especificidad (VN + todas las falsas alarmas FP)
+  const specificityTrials = vn + fp;
+  const targetAbsentTrials = vn + fpBlank;
 
-  const sensitivity = targetPresentTrials > 0
-    ? Math.round((vp / targetPresentTrials) * 1000) / 10
-    : null;
+  // Sensibilidad = VP / todas las rondas con olor
+  const sensitivity = targetPresentTrials > 0 ? pct(vp, targetPresentTrials) : null;
 
-  const specificity = targetAbsentTrials > 0
-    ? Math.round((vn / targetAbsentTrials) * 1000) / 10
-    : null;
+  // Especificidad = VN / (VN + FP)
+  const specificity = specificityTrials > 0 ? pct(vn, specificityTrials) : null;
 
-  const accuracy = totalTrials > 0
-    ? Math.round(((vp + vn) / totalTrials) * 1000) / 10
-    : 0;
+  // Precisión = VP / todas las marcas (VP + FP)
+  const precision = vp + fp > 0 ? pct(vp, vp + fp) : null;
+
+  // Exactitud = (VP + VN) / total de rondas
+  const accuracy = totalTrials > 0 ? pct(vp + vn, totalTrials) : 0;
 
   // Criterios de determinación de umbrales
   const isReliableThreshold =
@@ -99,7 +119,7 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
 
   const isFrustrationWarning =
     specificity !== null &&
-    targetAbsentTrials >= 3 &&
+    specificityTrials >= 3 &&
     specificity < 70;
 
   return {
@@ -112,6 +132,7 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
     targetAbsentTrials,
     sensitivity,
     specificity,
+    precision,
     accuracy,
     isReliableThreshold,
     isSensoryLimit,
@@ -133,9 +154,35 @@ export function computeMetricsByLevel(
     .map((level) => {
       const levelTrials = trials.filter((t) => t.dilutionId === level.id);
       const metrics = computeThresholdMetrics(levelTrials);
+
+      // Agrupar por perro y bloque para contar bloques de 10 con >= 80% (>= 8 aciertos) sin mezclar perros
+      const passedByDog = new Map<string, number>();
+      const blockMap = new Map<string, { dogId: string; trials: Trial[] }>();
+      for (const t of levelTrials) {
+        const key = `${t.dogId}_${t.blockNumber || 1}`;
+        if (!blockMap.has(key)) blockMap.set(key, { dogId: t.dogId, trials: [] });
+        blockMap.get(key)!.trials.push(t);
+      }
+
+      for (const { dogId, trials: bTrials } of blockMap.values()) {
+        if (bTrials.length >= 10) {
+          const hits = bTrials.slice(0, 10).filter((t) => {
+            const out = getTrialOutcome(t);
+            return out === 'VP' || out === 'VN';
+          }).length;
+          if (hits >= 8) {
+            passedByDog.set(dogId, (passedByDog.get(dogId) || 0) + 1);
+          }
+        }
+      }
+
+      const passedBlocksCount =
+        passedByDog.size > 0 ? Math.max(...passedByDog.values()) : 0;
+
       return {
         ...metrics,
         level,
+        passedBlocksCount,
       };
     })
     .filter((summary) => summary.totalTrials > 0);

@@ -42,10 +42,11 @@ export interface ThresholdMetrics {
   vn: number;
   fn: number;
   totalTrials: number;
-  targetPresentTrials: number; // VP + FN
-  targetAbsentTrials: number; // VN + FP (controles o blancos)
-  sensitivity: number | null; // % Tasa de acierto
-  specificity: number | null; // % Rechazo correcto
+  targetPresentTrials: number; // Rondas con olor: VP + FN + FP en ronda con olor
+  targetAbsentTrials: number; // Rondas en blanco: VN + FP en ronda en blanco
+  sensitivity: number | null; // % VP / rondas con olor
+  specificity: number | null; // % VN / rondas en blanco
+  precision: number | null; // % VP / (VP + FP)
   accuracy: number; // % Exactitud global
   isReliableThreshold: boolean; // Sensibilidad >= 80% & especificidad >= 85%
   isSensoryLimit: boolean; // Sensibilidad entre 15% y 30% (cercano al azar 12.5%)
@@ -54,6 +55,7 @@ export interface ThresholdMetrics {
 
 export interface LevelMetricsSummary extends ThresholdMetrics {
   level: DilutionLevel;
+  passedBlocksCount: number;
 }
 
 export interface SheetsConfig {

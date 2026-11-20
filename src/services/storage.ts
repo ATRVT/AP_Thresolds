@@ -199,22 +199,6 @@ export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: str
     .filter((t) => t.dogId === dogId && t.dilutionId === dilutionId)
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-  if (matchingTrials.length === 0) {
-    return {
-      blockNumber: 1,
-      roundInBlock: 1,
-      trialsInCurrentBlock: [] as Trial[],
-      isBlockComplete: false,
-      blockHits: 0,
-    };
-  }
-
-  // Obtenemos el último bloque registrado
-  const lastTrial = matchingTrials[matchingTrials.length - 1];
-  const lastBlockNum = lastTrial.blockNumber || 1;
-
-  const currentBlockTrials = matchingTrials.filter((t) => (t.blockNumber || 1) === lastBlockNum);
-
   const countHits = (tList: Trial[]) =>
     tList.filter(
       (t) =>
@@ -224,6 +208,41 @@ export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: str
         (t as any).resultTDS === 'VN'
     ).length;
 
+  // Contar cuántos bloques de 10 completos en este nivel tienen >= 8 aciertos (>= 80%)
+  const blockMap = new Map<number, Trial[]>();
+  for (const t of matchingTrials) {
+    const bNum = t.blockNumber || 1;
+    if (!blockMap.has(bNum)) blockMap.set(bNum, []);
+    blockMap.get(bNum)!.push(t);
+  }
+
+  let passedBlocksCount = 0;
+  for (const [, bTrials] of blockMap) {
+    if (bTrials.length >= 10 && countHits(bTrials.slice(0, 10)) >= 8) {
+      passedBlocksCount++;
+    }
+  }
+
+  const isLevelMastered = passedBlocksCount >= 2;
+
+  if (matchingTrials.length === 0) {
+    return {
+      blockNumber: 1,
+      roundInBlock: 1,
+      trialsInCurrentBlock: [] as Trial[],
+      isBlockComplete: false,
+      blockHits: 0,
+      passedBlocksCount: 0,
+      isLevelMastered: false,
+    };
+  }
+
+  // Obtenemos el último bloque registrado
+  const lastTrial = matchingTrials[matchingTrials.length - 1];
+  const lastBlockNum = lastTrial.blockNumber || 1;
+
+  const currentBlockTrials = matchingTrials.filter((t) => (t.blockNumber || 1) === lastBlockNum);
+
   if (currentBlockTrials.length < 10) {
     const blockHits = countHits(currentBlockTrials);
     return {
@@ -232,6 +251,8 @@ export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: str
       trialsInCurrentBlock: currentBlockTrials,
       isBlockComplete: false,
       blockHits,
+      passedBlocksCount,
+      isLevelMastered,
     };
   } else {
     // El bloque anterior llegó a 10
@@ -242,6 +263,8 @@ export function getBlockProgress(trials: Trial[], dogId: string, dilutionId: str
       trialsInCurrentBlock: currentBlockTrials,
       isBlockComplete: true,
       blockHits,
+      passedBlocksCount,
+      isLevelMastered,
     };
   }
 }

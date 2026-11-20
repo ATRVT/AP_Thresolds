@@ -363,9 +363,19 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs">
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                blockProgress.isLevelMastered
+                  ? 'bg-[#30E674]/20 text-[#15803d]'
+                  : blockProgress.passedBlocksCount === 1
+                  ? 'bg-[#108BF7]/15 text-[#108BF7]'
+                  : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              Bloques ≥ 80%: {blockProgress.passedBlocksCount}/2
+            </span>
             <span className="text-slate-500">
-              Aciertos: <b className="text-slate-900">{blockProgress.blockHits}/10</b>{' '}
-              <span className="text-[11px] text-slate-400">({blockProgress.blockHits * 10}%)</span>
+              <b className="text-slate-900">{blockProgress.blockHits}/10</b>
             </span>
           </div>
         </div>
@@ -422,19 +432,27 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
               </div>
               <span
                 className={`px-2 py-0.5 rounded-full font-bold text-[11px] ${
-                  blockProgress.blockHits >= 8
+                  blockProgress.isLevelMastered
                     ? 'bg-[#30E674] text-slate-950'
+                    : blockProgress.blockHits >= 8
+                    ? 'bg-[#108BF7]/15 text-[#108BF7] border border-[#108BF7]/30'
                     : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}
               >
-                {blockProgress.blockHits >= 8 ? 'Superado (≥ 80%)' : 'No superado (< 80%)'}
+                {blockProgress.isLevelMastered
+                  ? 'Nivel superado (2/2 ≥ 80%)'
+                  : blockProgress.blockHits >= 8
+                  ? `1 de 2 bloques ≥ 80%`
+                  : `Bloque < 80% (${blockProgress.passedBlocksCount}/2)`}
               </span>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              {blockProgress.blockHits >= 8
-                ? `Logró ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%) en ${activeLevel.name}. Ya puede avanzar al siguiente nivel.`
-                : `Obtuvo ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%). Se requiere al menos 80% (8/10) para avanzar de nivel.`}
+              {blockProgress.isLevelMastered
+                ? `Logró ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%). Ha completado 2 bloques de 10 con ≥ 80% en ${activeLevel.name} y ya puede avanzar al siguiente nivel.`
+                : blockProgress.blockHits >= 8
+                ? `¡Primer bloque superado con ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%)! Para superar ${activeLevel.name} se requieren 2 bloques de 10 con ≥ 80% (lleva 1 de 2). Inicia el segundo bloque.`
+                : `Obtuvo ${blockProgress.blockHits} de 10 aciertos (${blockProgress.blockHits * 10}%). Para superar el nivel se requieren 2 bloques de 10 con al menos 80% (lleva ${blockProgress.passedBlocksCount} de 2).`}
             </p>
 
             <button
@@ -458,17 +476,19 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 type="button"
                 onClick={handleStartNewBlock}
                 className={`flex-1 py-2 px-3 rounded-lg border font-bold text-xs text-center transition-all ${
-                  blockProgress.blockHits >= 8
+                  blockProgress.isLevelMastered
                     ? 'bg-white border-slate-300 hover:bg-slate-50 text-slate-800'
                     : 'bg-[#FA963D] hover:bg-[#e07a22] text-slate-950 border-[#FA963D]'
                 }`}
               >
-                {blockProgress.blockHits >= 8
+                {blockProgress.isLevelMastered
                   ? 'Repetir bloque en este nivel'
+                  : blockProgress.passedBlocksCount === 1
+                  ? 'Iniciar 2.º bloque de 10 en este nivel'
                   : 'Nueva sesión de 10 en este nivel'}
               </button>
 
-              {blockProgress.blockHits >= 8 ? (
+              {blockProgress.isLevelMastered ? (
                 <button
                   type="button"
                   onClick={handleAdvanceToNextLevel}
@@ -480,7 +500,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
               ) : (
                 <div className="flex-1 py-2 px-3 rounded-lg bg-slate-100 border border-slate-200 text-slate-400 font-semibold text-[11px] flex items-center justify-center gap-1">
                   <Lock className="w-3 h-3" />
-                  <span>Siguiente nivel bloqueado</span>
+                  <span>Siguiente nivel bloqueado ({blockProgress.passedBlocksCount}/2 bloques)</span>
                 </div>
               )}
             </div>

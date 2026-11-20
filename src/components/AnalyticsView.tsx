@@ -38,9 +38,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
         frustratedLevels.push(summary.level);
       }
 
-      if (summary.sensitivity !== null) {
+      if (summary.passedBlocksCount >= 2) {
         const specOk = summary.specificity === null || summary.specificity >= 85;
-        if (summary.sensitivity >= 80 && specOk) {
+        if (specOk) {
           reliableThresholdLevel = summary.level;
         }
       }
@@ -87,7 +87,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
 
       {/* Resumen de métricas + Conteo en línea */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs space-y-3">
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-2 gap-2 text-center">
           <div className="p-2.5 rounded-xl bg-[#F3F5F2]/70">
             <span className="text-[10px] font-bold text-slate-500 block">
               Sensibilidad
@@ -109,6 +109,18 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
             </div>
             <span className="text-[10px] font-semibold text-[#108BF7]">
               Meta ≥ 85%
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-[#F3F5F2]/70">
+            <span className="text-[10px] font-bold text-slate-500 block">
+              Precisión
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-0.5">
+              {globalMetrics.precision !== null ? `${globalMetrics.precision}%` : '--'}
+            </div>
+            <span className="text-[10px] font-semibold text-[#FA963D]">
+              Marcas correctas
             </span>
           </div>
 
@@ -169,7 +181,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
             </div>
           ) : (
             <p className="text-[11px] text-slate-400">
-              Pendiente (requiere ≥ 80%)
+              Pendiente (2 bloques ≥ 80%)
             </p>
           )}
         </div>
@@ -298,7 +310,9 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
                       <span className="text-slate-600">FN: {summary.fn}</span>
                       <span className="text-[#108BF7]">VN: {summary.vn}</span>
                     </div>
-                    <span>{summary.totalTrials} rondas</span>
+                    <span>
+                      Bloques ≥ 80%: <b className="text-slate-800">{summary.passedBlocksCount}/2</b> • {summary.totalTrials} rondas
+                    </span>
                   </div>
                 </div>
               );

@@ -26,29 +26,20 @@ export function hasDogMasteredStock(trials: Trial[], dogId: string): boolean {
 
   for (const [, bTrials] of blockMap) {
     if (bTrials.length >= 10) {
-      const hits = bTrials.filter(
+      const hits = bTrials.slice(0, 10).filter(
         (t) =>
           t.resultOutcome === 'VP' ||
           (t as any).resultTDS === 'VP' ||
           t.resultOutcome === 'VN' ||
           (t as any).resultTDS === 'VN'
       ).length;
-      if (hits / bTrials.length >= 0.8) {
+      if (hits >= 8) {
         return true;
       }
     }
   }
 
-  // O si el acumulado global en Stock supera el 80% con al menos 10 ensayos
-  const totalStockHits = stockTrials.filter(
-    (t) =>
-      t.resultOutcome === 'VP' ||
-      (t as any).resultTDS === 'VP' ||
-      t.resultOutcome === 'VN' ||
-      (t as any).resultTDS === 'VN'
-  ).length;
-
-  return totalStockHits / stockTrials.length >= 0.8;
+  return false;
 }
 
 /**

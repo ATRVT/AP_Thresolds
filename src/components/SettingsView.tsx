@@ -641,7 +641,7 @@ function doGet(e) {
         </h3>
         <ul className="space-y-1.5 text-[11px] text-slate-600">
           <li>
-            • <b>Aprobación del bloque:</b> Mínimo de <b>8 aciertos en 10 rondas (≥ 80%)</b> para superar el nivel.
+            • <b>Aprobación de nivel:</b> Se requieren <b>2 bloques de 10 rondas con ≥ 80% de aciertos</b> (mínimo 8 de 10 en cada bloque) para superar el nivel.
           </li>
           <li>
             • <b>Umbral operativo confiable:</b> La dilución más baja con sensibilidad ≥ 80% y especificidad ≥ 85%.
