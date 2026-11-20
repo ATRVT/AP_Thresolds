@@ -26,23 +26,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <>
       {/* Barra superior */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 py-3 safe-area-top shadow-xs">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2.5 safe-area-top">
         <div className="max-w-xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#FA963D] to-[#30E674] p-0.5 flex items-center justify-center shadow-xs">
-              <div className="w-full h-full bg-[#F3F5F2] rounded-[10px] flex items-center justify-center text-base">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#FA963D] to-[#30E674] p-0.5 flex items-center justify-center">
+              <div className="w-full h-full bg-[#F3F5F2] rounded-[10px] flex items-center justify-center text-sm">
                 🐾
               </div>
             </div>
-            <div>
-              <h1 className="text-sm font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
-                Umbrales olfativos
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#30E674]/15 text-[#15803d] border border-[#30E674]/30">
-                  Bloques de 10
-                </span>
-              </h1>
-              <p className="text-[11px] text-slate-500">Evaluación y registro de sesiones</p>
-            </div>
+            <h1 className="text-sm font-bold tracking-tight text-slate-900">
+              Umbrales olfativos
+            </h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -50,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               pendingSyncCount > 0 ? (
                 <div
                   title={`${pendingSyncCount} pasadas pendientes de sincronizar`}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#FA963D]/15 text-[#c2410c] border border-[#FA963D]/30"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#FA963D]/15 text-[#c2410c]"
                 >
                   <CloudOff className="w-3.5 h-3.5 animate-pulse" />
                   <span>{pendingSyncCount} pend.</span>
@@ -58,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               ) : (
                 <div
                   title="Conectado a Google Sheets"
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-[#30E674]/15 text-[#15803d] border border-[#30E674]/30"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#30E674]/15 text-[#15803d]"
                 >
                   <Cloud className="w-3.5 h-3.5 text-[#16a34a]" />
                   <span>Sheets ok</span>
@@ -67,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <div
                 title="Modo local (Google Sheets no configurado)"
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600"
               >
                 <span>Local</span>
               </div>

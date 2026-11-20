@@ -134,10 +134,14 @@ export function loadSessionDefaults(): SessionDefaults {
     const raw = localStorage.getItem(STORAGE_KEYS.SESSION_DEFAULTS);
     if (raw) {
       const parsed = JSON.parse(raw);
+      const validDilution = OFFICIAL_DILUTION_TABLE.some((l) => l.id === parsed.dilutionId)
+        ? parsed.dilutionId
+        : OFFICIAL_DILUTION_TABLE[0].id;
       return {
         ...parsed,
-        sessionDate: parsed.sessionDate || today,
-        sessionTurn: parsed.sessionTurn || turn,
+        dilutionId: validDilution,
+        sessionDate: today,
+        sessionTurn: turn,
       };
     }
   } catch (e) {
