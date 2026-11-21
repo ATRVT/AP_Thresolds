@@ -30,18 +30,29 @@ const m1 = computeThresholdMetrics(c1);
 assert.strictEqual(m1.targetPresentTrials, 8);
 assert.strictEqual(m1.targetAbsentTrials, 2);
 assert.strictEqual(m1.sensitivity, 75); // 6/8
-assert.strictEqual(m1.specificity, 33.3); // VN / (VN + FP) = 1/3
+assert.strictEqual(m1.specificity, 50); // VN / (VN + FP_blanco) = 1/2
 assert.strictEqual(m1.precision, 75); // 6/(6+2)
 assert.strictEqual(m1.accuracy, 70); // (6+1)/10
 console.log('✓ Caso 1 (bloque mixto):', m1.sensitivity, m1.specificity, m1.precision, m1.accuracy);
 
-// Caso 2: 5 VP + 5 FP en rondas con olor
+// Caso 2: 5 VP + 5 FP en rondas con olor (0 rondas en blanco) -> especificidad no evaluable (null) y sin falsa alerta
 const m2 = computeThresholdMetrics([...rep(5, () => t('VP', false)), ...rep(5, () => t('FP', false))]);
 assert.strictEqual(m2.sensitivity, 50);
-assert.strictEqual(m2.specificity, 0);
+assert.strictEqual(m2.specificity, null);
+assert.strictEqual(m2.isFrustrationWarning, false);
 assert.strictEqual(m2.precision, 50);
 assert.strictEqual(m2.accuracy, 50);
-console.log('✓ Caso 2 (falsos en rondas con olor cuentan como fallo de detección y especificidad)');
+console.log('✓ Caso 2 (falsos en rondas con olor penalizan sensibilidad/precisión sin dar especificidad 0%)');
+
+// Caso 2b: 8 VP + 2 FP en rondas con olor (sin blancos) -> SÍ aprueba el bloque (80% exactitud y 80% sensibilidad)
+const block8vp2fp = [
+  ...rep(8, () => t('VP', false, 1)),
+  ...rep(2, () => t('FP', false, 1)),
+];
+const eval8vp2fp = evaluateBlockStatus(block8vp2fp);
+assert.strictEqual(eval8vp2fp.metrics.specificity, null);
+assert.strictEqual(eval8vp2fp.passed, true);
+console.log('✓ Caso 2b (bloque sin blancos con 8 VP + 2 FP aprueba al 80%)');
 
 // Caso 3: 6 VP + 2 FN + 2 VN = 8/10 total pero solo 75% sensibilidad -> NO debe aprobar
 const block6vp2vn = [

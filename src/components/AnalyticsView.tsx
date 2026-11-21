@@ -108,7 +108,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
               {globalMetrics.specificity !== null ? `${globalMetrics.specificity}%` : '--'}
             </div>
             <span className="text-[10px] font-semibold text-[#108BF7]">
-              Meta ≥ 85%
+              {globalMetrics.targetAbsentTrials > 0 ? 'Meta ≥ 85%' : 'Sin rondas en blanco'}
             </span>
           </div>
 

@@ -89,15 +89,14 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
   const totalTrials = trials.length;
   // Rondas con olor: VP + FN + falsos en ronda con olor
   const targetPresentTrials = vp + fn + fpTarget;
-  // Denominador de especificidad (VN + todas las falsas alarmas FP)
-  const specificityTrials = vn + fp;
+  // Rondas en blanco (sin olor diana): VN + falsos en ronda en blanco
   const targetAbsentTrials = vn + fpBlank;
 
   // Sensibilidad = VP / todas las rondas con olor
   const sensitivity = targetPresentTrials > 0 ? pct(vp, targetPresentTrials) : null;
 
-  // Especificidad = VN / (VN + FP)
-  const specificity = specificityTrials > 0 ? pct(vn, specificityTrials) : null;
+  // Especificidad = VN / rondas en blanco (VN + FP en blanco)
+  const specificity = targetAbsentTrials > 0 ? pct(vn, targetAbsentTrials) : null;
 
   // Precisión = VP / todas las marcas (VP + FP)
   const precision = vp + fp > 0 ? pct(vp, vp + fp) : null;
@@ -119,7 +118,7 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
 
   const isFrustrationWarning =
     specificity !== null &&
-    specificityTrials >= 3 &&
+    targetAbsentTrials >= 3 &&
     specificity < 70;
 
   return {
