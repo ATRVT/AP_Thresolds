@@ -38,7 +38,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
         frustratedLevels.push(summary.level);
       }
 
-      if (summary.passedBlocksCount >= 2) {
+      if (summary.isLevelMastered) {
         const specOk = summary.specificity === null || summary.specificity >= 85;
         if (specOk) {
           reliableThresholdLevel = summary.level;
@@ -108,31 +108,57 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
               {globalMetrics.specificity !== null ? `${globalMetrics.specificity}%` : '--'}
             </div>
             <span className="text-[10px] font-semibold text-[#108BF7]">
-              {globalMetrics.targetAbsentTrials > 0 ? 'Meta ≥ 85%' : 'Sin rondas en blanco'}
+              {globalMetrics.controlPorts > 0
+                ? `${globalMetrics.vnPorts}/${globalMetrics.controlPorts} puertos`
+                : 'Sin datos'}
             </span>
           </div>
 
           <div className="p-2.5 rounded-xl bg-[#F3F5F2]/70">
             <span className="text-[10px] font-bold text-slate-500 block">
-              Precisión
+              VPP (Precisión)
             </span>
             <div className="text-xl font-black text-slate-900 mt-0.5">
-              {globalMetrics.precision !== null ? `${globalMetrics.precision}%` : '--'}
+              {globalMetrics.ppv !== null ? `${globalMetrics.ppv}%` : '--'}
             </div>
             <span className="text-[10px] font-semibold text-[#FA963D]">
-              Marcas correctas
+              Valor predictivo +
             </span>
           </div>
 
           <div className="p-2.5 rounded-xl bg-[#F3F5F2]/70">
             <span className="text-[10px] font-bold text-slate-500 block">
-              Exactitud
+              VPN
             </span>
             <div className="text-xl font-black text-slate-900 mt-0.5">
-              {globalMetrics.accuracy}%
+              {globalMetrics.npv !== null ? `${globalMetrics.npv}%` : '--'}
+            </div>
+            <span className="text-[10px] font-semibold text-[#0284c7]">
+              Valor predictivo −
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-[#F3F5F2]/70">
+            <span className="text-[10px] font-bold text-slate-500 block">
+              Exactitud bal.
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-0.5">
+              {globalMetrics.balancedAccuracy !== null ? `${globalMetrics.balancedAccuracy}%` : `${globalMetrics.accuracy}%`}
             </div>
             <span className="text-[10px] font-semibold text-slate-500">
-              {filteredTrials.length} rondas
+              Ronda: {globalMetrics.accuracy}% ({filteredTrials.length})
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-[#F3F5F2]/70">
+            <span className="text-[10px] font-bold text-slate-500 block">
+              Índice d′ (SDT)
+            </span>
+            <div className="text-xl font-black text-slate-900 mt-0.5">
+              {globalMetrics.dPrime !== null ? globalMetrics.dPrime.toFixed(2) : '--'}
+            </div>
+            <span className="text-[10px] font-semibold text-slate-500">
+              Discriminación (Hautus)
             </span>
           </div>
         </div>
@@ -181,7 +207,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
             </div>
           ) : (
             <p className="text-[11px] text-slate-400">
-              Pendiente (2 bloques ≥ 80%)
+              Pendiente (2 bloques consec. ≥ 80%)
             </p>
           )}
         </div>
@@ -311,7 +337,7 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ trials, dogs, leve
                       <span className="text-[#108BF7]">VN: {summary.vn}</span>
                     </div>
                     <span>
-                      Bloques ≥ 80%: <b className="text-slate-800">{summary.passedBlocksCount}/2</b> • {summary.totalTrials} rondas
+                      Bloques consec. ≥ 80%: <b className="text-slate-800">{Math.min(summary.passedBlocksCount, 2)}/2</b> • {summary.totalTrials} rondas
                     </span>
                   </div>
                 </div>

@@ -1,6 +1,6 @@
 import { Trial, Dog, SheetsConfig } from '../types';
 import { OFFICIAL_DILUTION_TABLE, DEFAULT_WEBHOOK_URL } from '../constants/dilutions';
-import { evaluateBlockStatus } from '../utils/tdsMetrics';
+import { evaluateBlockStatus, evaluateConsecutiveBlocks } from '../utils/tdsMetrics';
 
 const STORAGE_KEYS = {
   TRIALS: 'canine_thresholds_trials_v3',
@@ -207,7 +207,7 @@ export function getBlockProgress(
     .filter((t) => t.dogId === dogId && t.dilutionId === dilutionId)
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-  // Agrupar por bloque y evaluar con la regla unificada (exactitud ≥ 80% y sensibilidad ≥ 80%)
+  // Agrupar por bloque para acceso al bloque actual
   const blockMap = new Map<number, Trial[]>();
   for (const t of matchingTrials) {
     const bNum = t.blockNumber || 1;
@@ -215,14 +215,12 @@ export function getBlockProgress(
     blockMap.get(bNum)!.push(t);
   }
 
-  let passedBlocksCount = 0;
-  for (const [, bTrials] of blockMap) {
-    if (evaluateBlockStatus(bTrials).passed) {
-      passedBlocksCount++;
-    }
-  }
-
-  const isLevelMastered = passedBlocksCount >= 2;
+  // Evaluar racha de bloques consecutivos superados (≥ 80% exactitud y sensibilidad)
+  const streak = evaluateConsecutiveBlocks(matchingTrials);
+  const isLevelMastered = streak.isLevelMastered;
+  const passedBlocksCount = isLevelMastered
+    ? streak.maxConsecutivePassed
+    : streak.currentConsecutivePassed;
 
   if (matchingTrials.length === 0) {
     const initialBlock = targetBlockNumber || 1;

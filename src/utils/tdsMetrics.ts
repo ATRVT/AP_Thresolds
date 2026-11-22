@@ -47,6 +47,69 @@ export function getTrialOutcome(trial: Trial | any): ResultOutcome {
  */
 const pct = (num: number, den: number): number => Math.round((num / den) * 1000) / 10;
 
+const ARMS_PER_CAROUSEL = 8;
+
+/**
+ * Función cuantil normal estándar inversa (aproximación racional de Acklam, precisión < 1.15e-9)
+ * para el cálculo exacto del índice d' en Teoría de Detección de Señales (SDT).
+ */
+function normInv(p: number): number {
+  const clamped = Math.min(1 - 1e-12, Math.max(1e-12, p));
+  const a = [
+    -3.969683028665376e1,
+    2.209460984245205e2,
+    -2.759285104469687e2,
+    1.38357751867269e2,
+    -3.066479806614716e1,
+    2.506628277459239,
+  ];
+  const b = [
+    -5.447609879822406e1,
+    1.615858368580409e2,
+    -1.556989798598866e2,
+    6.680131188771972e1,
+    -1.328068155288572e1,
+  ];
+  const c = [
+    -7.784894002430293e-3,
+    -3.223964580411365e-1,
+    -2.400758277161838,
+    -2.549732539343734,
+    4.374664141464968,
+    2.938163982698783,
+  ];
+  const d = [
+    7.784695709041462e-3,
+    3.224671290700398e-1,
+    2.445134137142996,
+    3.754408661907416,
+  ];
+
+  const pLow = 0.02425;
+  const pHigh = 1 - pLow;
+
+  if (clamped < pLow) {
+    const q = Math.sqrt(-2 * Math.log(clamped));
+    return (
+      (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+      ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    );
+  }
+  if (clamped <= pHigh) {
+    const q = clamped - 0.5;
+    const r = q * q;
+    return (
+      ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q) /
+      (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+    );
+  }
+  const q = Math.sqrt(-2 * Math.log(1 - clamped));
+  return (
+    -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) /
+    ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+  );
+}
+
 /**
  * Determina si una ronda era en blanco (sin olor diana).
  * VN siempre es ronda en blanco; VP y FN siempre son rondas con olor.
@@ -92,17 +155,44 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
   // Rondas en blanco (sin olor diana): VN + falsos en ronda en blanco
   const targetAbsentTrials = vn + fpBlank;
 
-  // Sensibilidad = VP / todas las rondas con olor
+  // Estándar de oro por puerto/brazo en carrusel de 8 brazos:
+  // 7 brazos control en cada ronda con olor + 8 brazos control en cada ronda en blanco
+  const controlPorts =
+    (ARMS_PER_CAROUSEL - 1) * targetPresentTrials + ARMS_PER_CAROUSEL * targetAbsentTrials;
+  const vnPorts = Math.max(0, controlPorts - fp);
+  const missedTargets = targetPresentTrials - vp; // FN + fpTarget
+
+  // Sensibilidad = VP / todas las rondas (puertos diana) con olor
   const sensitivity = targetPresentTrials > 0 ? pct(vp, targetPresentTrials) : null;
 
-  // Especificidad = VN / rondas en blanco (VN + FP en blanco)
-  const specificity = targetAbsentTrials > 0 ? pct(vn, targetAbsentTrials) : null;
+  // Especificidad por puerto = VN_puertos / controlPorts
+  const specificity = controlPorts > 0 ? pct(vnPorts, controlPorts) : null;
 
-  // Precisión = VP / todas las marcas (VP + FP)
-  const precision = vp + fp > 0 ? pct(vp, vp + fp) : null;
+  // Valor Predictivo Positivo (VPP / Precisión) = VP / (VP + FP)
+  const ppv = vp + fp > 0 ? pct(vp, vp + fp) : null;
+  const precision = ppv;
 
-  // Exactitud = (VP + VN) / total de rondas
+  // Valor Predictivo Negativo (VPN) = VN_puertos / (VN_puertos + omisiones de diana)
+  const npv = vnPorts + missedTargets > 0 ? pct(vnPorts, vnPorts + missedTargets) : null;
+
+  // Exactitud por ronda = (VP + VN) / total de rondas
   const accuracy = totalTrials > 0 ? pct(vp + vn, totalTrials) : 0;
+
+  // Exactitud balanceada = (Sensibilidad + Especificidad) / 2 (inmune al desbalanceo 7:1)
+  const balancedAccuracy =
+    sensitivity !== null && specificity !== null
+      ? Math.round(((sensitivity + specificity) / 2) * 10) / 10
+      : null;
+
+  // Índice d' (d-prime) de Teoría de Detección de Señales con corrección log-lineal de Hautus (1995)
+  const dPrime =
+    targetPresentTrials > 0 && controlPorts > 0
+      ? Math.round(
+          (normInv((vp + 0.5) / (targetPresentTrials + 1)) -
+            normInv((fp + 0.5) / (controlPorts + 1))) *
+            100
+        ) / 100
+      : null;
 
   // Criterios de determinación de umbrales
   const isReliableThreshold =
@@ -116,10 +206,10 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
     sensitivity >= 15 &&
     sensitivity <= 30;
 
+  const blankSpecificity = targetAbsentTrials > 0 ? pct(vn, targetAbsentTrials) : null;
   const isFrustrationWarning =
-    specificity !== null &&
-    targetAbsentTrials >= 3 &&
-    specificity < 70;
+    (blankSpecificity !== null && targetAbsentTrials >= 3 && blankSpecificity < 70) ||
+    (totalTrials >= 10 && specificity !== null && specificity < 95);
 
   return {
     vp,
@@ -129,10 +219,16 @@ export function computeThresholdMetrics(trials: Trial[]): ThresholdMetrics {
     totalTrials,
     targetPresentTrials,
     targetAbsentTrials,
+    controlPorts,
+    vnPorts,
     sensitivity,
     specificity,
     precision,
+    ppv,
+    npv,
     accuracy,
+    balancedAccuracy,
+    dPrime,
     isReliableThreshold,
     isSensoryLimit,
     isFrustrationWarning,
@@ -170,6 +266,48 @@ export function evaluateBlockStatus(blockTrials: Trial[]) {
 }
 
 /**
+ * Evalúa la racha de bloques consecutivos superados (≥ 80%) para un perro y nivel.
+ * Solo un bloque completo fallido rompe la racha consecutiva.
+ */
+export function evaluateConsecutiveBlocks(trials: Trial[]) {
+  const blockMap = new Map<number, Trial[]>();
+  for (const t of trials) {
+    const bNum = t.blockNumber || 1;
+    if (!blockMap.has(bNum)) blockMap.set(bNum, []);
+    blockMap.get(bNum)!.push(t);
+  }
+
+  const sortedBlockNumbers = Array.from(blockMap.keys()).sort((a, b) => a - b);
+
+  let currentStreak = 0;
+  let maxStreak = 0;
+  let totalPassedBlocks = 0;
+
+  for (const bNum of sortedBlockNumbers) {
+    const bTrials = [...blockMap.get(bNum)!].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+    const status = evaluateBlockStatus(bTrials);
+    if (status.passed) {
+      totalPassedBlocks++;
+      currentStreak++;
+      if (currentStreak > maxStreak) {
+        maxStreak = currentStreak;
+      }
+    } else if (status.isComplete) {
+      currentStreak = 0;
+    }
+  }
+
+  return {
+    maxConsecutivePassed: maxStreak,
+    currentConsecutivePassed: currentStreak,
+    totalPassedBlocks,
+    isLevelMastered: maxStreak >= 2,
+  };
+}
+
+/**
  * Agrupa las pasadas por nivel de dilución y calcula sus métricas individuales.
  */
 export function computeMetricsByLevel(
@@ -181,31 +319,31 @@ export function computeMetricsByLevel(
       const levelTrials = trials.filter((t) => t.dilutionId === level.id);
       const metrics = computeThresholdMetrics(levelTrials);
 
-      // Agrupar por perro y bloque para contar bloques de 10 aprobados sin mezclar perros
-      const passedByDog = new Map<string, number>();
-      const blockMap = new Map<string, { dogId: string; trials: Trial[] }>();
+      // Agrupar por perro para evaluar rachas consecutivas sin mezclar perros
+      const trialsByDog = new Map<string, Trial[]>();
       for (const t of levelTrials) {
-        const key = `${t.dogId}_${t.blockNumber || 1}`;
-        if (!blockMap.has(key)) blockMap.set(key, { dogId: t.dogId, trials: [] });
-        blockMap.get(key)!.trials.push(t);
+        if (!trialsByDog.has(t.dogId)) trialsByDog.set(t.dogId, []);
+        trialsByDog.get(t.dogId)!.push(t);
       }
 
-      for (const { dogId, trials: bTrials } of blockMap.values()) {
-        const sorted = [...bTrials].sort(
-          (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-        );
-        if (evaluateBlockStatus(sorted).passed) {
-          passedByDog.set(dogId, (passedByDog.get(dogId) || 0) + 1);
+      let bestProgress = 0;
+      let isLevelMastered = false;
+
+      for (const dogTrials of trialsByDog.values()) {
+        const streak = evaluateConsecutiveBlocks(dogTrials);
+        if (streak.isLevelMastered) {
+          isLevelMastered = true;
+          bestProgress = Math.max(bestProgress, streak.maxConsecutivePassed);
+        } else {
+          bestProgress = Math.max(bestProgress, streak.currentConsecutivePassed);
         }
       }
-
-      const passedBlocksCount =
-        passedByDog.size > 0 ? Math.max(...passedByDog.values()) : 0;
 
       return {
         ...metrics,
         level,
-        passedBlocksCount,
+        passedBlocksCount: bestProgress,
+        isLevelMastered,
       };
     })
     .filter((summary) => summary.totalTrials > 0);

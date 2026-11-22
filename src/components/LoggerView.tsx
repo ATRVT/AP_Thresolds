@@ -381,7 +381,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                   : 'bg-slate-100 text-slate-500'
               }`}
             >
-              Bloques ≥ 80%: {blockProgress.passedBlocksCount}/2
+              Bloques consec. ≥ 80%: {Math.min(blockProgress.passedBlocksCount, 2)}/2
             </span>
             <span className="text-slate-500">
               <b className="text-slate-900">{blockProgress.blockHits}/10</b>
@@ -461,19 +461,19 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 }`}
               >
                 {blockProgress.isLevelMastered
-                  ? 'Nivel superado (2/2 ≥ 80%)'
+                  ? 'Nivel superado (2/2 consec. ≥ 80%)'
                   : blockProgress.blockPassed
-                  ? '1 de 2 bloques ≥ 80%'
-                  : `Bloque no superado (${blockProgress.passedBlocksCount}/2)`}
+                  ? '1 de 2 bloques consec. ≥ 80%'
+                  : `Bloque no superado (${Math.min(blockProgress.passedBlocksCount, 2)}/2 consec.)`}
               </span>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
               {blockProgress.isLevelMastered
-                ? `Logró ${blockProgress.blockHits}/10 aciertos (${vpCount} positivas VP, ${vnCount} vacío VN${blockProgress.blockSensitivity !== null ? `, sensibilidad ${blockProgress.blockSensitivity}%` : ''}). Ya completó 2 bloques válidos en ${activeLevel.name}.`
+                ? `Logró ${blockProgress.blockHits}/10 aciertos (${vpCount} positivas VP, ${vnCount} vacío VN${blockProgress.blockSensitivity !== null ? `, sensibilidad ${blockProgress.blockSensitivity}%` : ''}). Ya completó 2 bloques consecutivos válidos en ${activeLevel.name}.`
                 : blockProgress.blockPassed
-                ? `Primer bloque válido: ${blockProgress.blockHits}/10 aciertos (${vpCount} VP, ${vnCount} VN, sensibilidad ${blockProgress.blockSensitivity}%). Falta 1 bloque más con ≥ 80% para superar ${activeLevel.name}.`
-                : `Obtuvo ${blockProgress.blockHits}/10 aciertos (${vpCount} positivas VP, ${vnCount} vacío VN${blockProgress.blockSensitivity !== null ? `, sensibilidad ${blockProgress.blockSensitivity}%` : ''}). Necesita ≥ 80% de exactitud y ≥ 80% de sensibilidad en 2 bloques (lleva ${blockProgress.passedBlocksCount}/2).`}
+                ? `Primer bloque válido: ${blockProgress.blockHits}/10 aciertos (${vpCount} VP, ${vnCount} VN, sensibilidad ${blockProgress.blockSensitivity}%). Falta 1 bloque consecutivo más con ≥ 80% para superar ${activeLevel.name}.`
+                : `Obtuvo ${blockProgress.blockHits}/10 aciertos (${vpCount} positivas VP, ${vnCount} vacío VN${blockProgress.blockSensitivity !== null ? `, sensibilidad ${blockProgress.blockSensitivity}%` : ''}). Necesita ≥ 80% de exactitud y ≥ 80% de sensibilidad en 2 bloques consecutivos (lleva ${Math.min(blockProgress.passedBlocksCount, 2)}/2).`}
             </p>
 
             {isCurrentBlockSynced && pendingTotal === 0 ? (
