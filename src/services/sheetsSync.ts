@@ -1,10 +1,18 @@
-import { Trial, Dog, DilutionLevel } from '../types';
-import { getTrialOutcome } from '../utils/tdsMetrics';
+import { Trial, Dog, DilutionLevel, ResultOutcome } from '../types';
+import { getTrialOutcome, calculateResultOutcome } from '../utils/tdsMetrics';
 
 export interface SyncResult {
   success: boolean;
   message: string;
   count?: number;
+}
+
+export interface FetchTrialsResult {
+  success: boolean;
+  message: string;
+  trials?: Trial[];
+  discoveredDogs?: Dog[];
+  needsScriptUpdate?: boolean;
 }
 
 /**
@@ -140,6 +148,195 @@ export async function syncTrialsToWebhook(
       message: `Error de conexión: ${error.message || 'Compruebe su conexión a internet'}`,
     };
   }
+}
+
+function normalizeDateString(raw: unknown): string {
+  const s = String(raw || '').trim();
+  if (!s) return new Date().toISOString().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? new Date().toISOString().slice(0, 10) : parsed.toISOString().slice(0, 10);
+}
+
+function normalizeTimestamp(raw: unknown, fallbackDate: string): string {
+  const s = String(raw || '').trim();
+  if (s) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  return `${fallbackDate}T12:00:00.000Z`;
+}
+
+function resolveDilutionId(rawName: unknown, rawRatio: unknown, levels: DilutionLevel[]): string {
+  const name = String(rawName || '').trim().toLowerCase();
+  const ratio = String(rawRatio || '').trim().toLowerCase();
+  const found = levels.find(
+    (l) =>
+      l.id.toLowerCase() === name ||
+      l.name.toLowerCase() === name ||
+      (ratio && l.theoreticalRatio.toLowerCase() === ratio)
+  );
+  return found ? found.id : levels[0]?.id || 'stock';
+}
+
+/**
+ * Descarga todas las pasadas almacenadas en Google Sheets mediante doGet (?action=get_trials)
+ */
+export async function fetchTrialsFromWebhook(
+  webhookUrl: string,
+  existingDogs: Dog[],
+  levels: DilutionLevel[]
+): Promise<FetchTrialsResult> {
+  if (!webhookUrl || !webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Dirección de webhook no configurada o inválida.',
+    };
+  }
+
+  const baseUrl = webhookUrl.trim();
+  const separator = baseUrl.includes('?') ? '&' : '?';
+  const fetchUrl = `${baseUrl}${separator}action=get_trials`;
+
+  try {
+    const response = await fetch(fetchUrl, { method: 'GET' });
+    const text = await response.text();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: `Error HTTP ${response.status} al leer Google Sheets.`,
+      };
+    }
+
+    if (text.toLowerCase().includes('<html')) {
+      return {
+        success: false,
+        message: 'Google Apps Script devolvió HTML. Verifica que la implementación tenga acceso "Cualquiera".',
+      };
+    }
+
+    const parsed = JSON.parse(text);
+    if (parsed.status === 'online') {
+      return {
+        success: false,
+        needsScriptUpdate: true,
+        message:
+          'Tu Apps Script actual no incluye lectura (doGet). Actualiza Code.gs desde Ajustes e implementa una nueva versión.',
+      };
+    }
+
+    if (parsed.status === 'error') {
+      return {
+        success: false,
+        message: `Error en Google Sheets: ${parsed.message || 'Error desconocido'}`,
+      };
+    }
+
+    if (parsed.status !== 'success' || !Array.isArray(parsed.data)) {
+      return {
+        success: false,
+        message: 'Respuesta inesperada de Google Sheets.',
+      };
+    }
+
+    const dogsByName = new Map(existingDogs.map((d) => [d.name.trim().toLowerCase(), d]));
+    const dogsById = new Map(existingDogs.map((d) => [d.id, d]));
+    const discoveredDogs: Dog[] = [];
+
+    const validOutcomes = new Set<ResultOutcome>(['VP', 'FP', 'VN', 'FN']);
+
+    const trials: Trial[] = parsed.data.map((row: any, idx: number) => {
+      const rawDog = String(row.ID_Perro || '').trim() || "K'at";
+      let dog = dogsById.get(rawDog) || dogsByName.get(rawDog.toLowerCase());
+      if (!dog) {
+        const newId = `dog-${rawDog.toLowerCase().replace(/[^a-z0-9]+/g, '-') || idx}`;
+        dog = {
+          id: newId,
+          name: rawDog,
+          handlerDefault: String(row.Guia || '').trim() || undefined,
+        };
+        dogsByName.set(rawDog.toLowerCase(), dog);
+        dogsById.set(newId, dog);
+        discoveredDogs.push(dog);
+      }
+
+      const sessionDate = normalizeDateString(row.Fecha_Sesion);
+      const timestamp = normalizeTimestamp(row.Timestamp, sessionDate);
+      const dilutionId = resolveDilutionId(row.Nivel_Dilucion, row.Dilucion_Teorica, levels);
+      const blockNumber = Number(row.Bloque) || 1;
+      const roundInBlock = Number(row.Ronda_En_Bloque ?? row.Ronda_Bloque) || 1;
+      const realPosition = Number(row.Posicion_Real) || 0;
+      const markedPosition = Number(row.Posicion_Marcada) || 0;
+      const blankStr = String(row.Es_Blanco || '').trim().toUpperCase();
+      const isBlank =
+        blankStr === 'SÍ' ||
+        blankStr === 'SI' ||
+        blankStr === 'TRUE' ||
+        row.Es_Blanco === true ||
+        realPosition === 0;
+
+      const rawOutcome = String(row.Resultado || row.Resultado_TDS || '').trim().toUpperCase() as ResultOutcome;
+      const resultOutcome: ResultOutcome = validOutcomes.has(rawOutcome)
+        ? rawOutcome
+        : calculateResultOutcome(isBlank, realPosition, markedPosition);
+
+      const id =
+        String(row.Id_Pasada || row.ID_Registro || '').trim() ||
+        `sheet_${dog.id}_${dilutionId}_${blockNumber}_${roundInBlock}_${timestamp}`;
+
+      return {
+        id,
+        timestamp,
+        dogId: dog.id,
+        handler: String(row.Guia || '').trim(),
+        judge: String(row.Preparador_Juez || '').trim(),
+        sessionDate,
+        sessionTurn: row.Turno === 'Tarde' ? 'Tarde' : 'Mañana',
+        dilutionId,
+        blockNumber,
+        roundInBlock,
+        isBlank,
+        realPosition,
+        markedPosition,
+        resultOutcome,
+        notes: String(row.Notas || '').trim() || undefined,
+        syncedToSheets: true,
+      };
+    });
+
+    return {
+      success: true,
+      message: `Descargadas ${trials.length} pasadas desde Google Sheets.`,
+      trials,
+      discoveredDogs,
+    };
+  } catch (error: any) {
+    console.error('Error al leer desde webhook:', error);
+    return {
+      success: false,
+      message: `Error al descargar de Sheets: ${error.message || 'Compruebe su conexión'}`,
+    };
+  }
+}
+
+/**
+ * Combina pasadas de Google Sheets con pasadas locales pendientes sin duplicar por ID.
+ * Ordena de más reciente a más antigua para mantener consistencia con addTrial().
+ */
+export function mergeTrialsFromSheets(localTrials: Trial[], remoteTrials: Trial[]): Trial[] {
+  const byId = new Map<string, Trial>();
+  for (const t of remoteTrials) {
+    byId.set(t.id, { ...t, syncedToSheets: true });
+  }
+  for (const t of localTrials) {
+    if (!byId.has(t.id) && !t.syncedToSheets) {
+      byId.set(t.id, t);
+    }
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
 }
 
 /**

@@ -33,6 +33,8 @@ interface SettingsViewProps {
   trials: Trial[];
   onUpdateTrials: (trials: Trial[]) => void;
   levels: DilutionLevel[];
+  onPullFromSheets?: () => Promise<{ success: boolean; message: string } | undefined>;
+  isSyncing?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -43,6 +45,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   trials,
   onUpdateTrials,
   levels,
+  onPullFromSheets,
+  isSyncing = false,
 }) => {
   const [webhookUrl, setWebhookUrl] = useState<string>(config.webhookUrl);
   const [autoSync, setAutoSync] = useState<boolean>(config.autoSync);
@@ -213,10 +217,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       hRange.setValues([headers]).setFontWeight("bold").setBackground("#FA963D").setFontColor("#ffffff");
       sheet.setFrozenRows(1);
     }
+    var existingIds = {};
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var idValues = sheet.getRange(2, 16, lastRow - 1, 1).getValues();
+      for (var k = 0; k < idValues.length; k++) {
+        var existingId = String(idValues[k][0] || '').trim();
+        if (existingId) existingIds[existingId] = true;
+      }
+    }
     var newRows = [];
     for (var i = 0; i < rowsToInsert.length; i++) {
       var item = rowsToInsert[i];
-      newRows.push([item.ID_Perro||'', item.Guia||'', item.Preparador_Juez||'', item.Fecha_Sesion||'', item.Turno||'', item.Nivel_Dilucion||'', item.Dilucion_Teorica||'', item.Bloque||1, item.Ronda_En_Bloque||1, item.Es_Blanco||'', item.Posicion_Real!==undefined?item.Posicion_Real:'', item.Posicion_Marcada!==undefined?item.Posicion_Marcada:'', item.Resultado||item.Resultado_TDS||'', item.Timestamp||new Date().toISOString(), item.Notas||'', item.Id_Pasada||'']);
+      var rowId = String(item.Id_Pasada || item.ID_Registro || '').trim();
+      if (rowId && existingIds[rowId]) continue;
+      if (rowId) existingIds[rowId] = true;
+      newRows.push([item.ID_Perro||'', item.Guia||'', item.Preparador_Juez||'', item.Fecha_Sesion||'', item.Turno||'', item.Nivel_Dilucion||'', item.Dilucion_Teorica||'', item.Bloque||1, item.Ronda_En_Bloque||1, item.Es_Blanco||'', item.Posicion_Real!==undefined?item.Posicion_Real:'', item.Posicion_Marcada!==undefined?item.Posicion_Marcada:'', item.Resultado||item.Resultado_TDS||'', item.Timestamp||new Date().toISOString(), item.Notas||'', rowId]);
     }
     if (newRows.length > 0) {
       sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
@@ -228,7 +244,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   }
 }
 function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({ status: 'online', message: 'Webhook activo' })).setMimeType(ContentService.MimeType.JSON);
+  try {
+    var action = e && e.parameter ? e.parameter.action : '';
+    if (action === 'get_trials') {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName("Registro_Umbrales") || ss.insertSheet("Registro_Umbrales");
+      var lastRow = sheet.getLastRow();
+      if (lastRow <= 1) return ContentService.createTextOutput(JSON.stringify({ status: 'success', count: 0, data: [] })).setMimeType(ContentService.MimeType.JSON);
+      var tz = Session.getScriptTimeZone() || 'UTC';
+      var values = sheet.getRange(2, 1, lastRow - 1, 16).getValues();
+      var rows = [];
+      for (var i = 0; i < values.length; i++) {
+        var r = values[i];
+        if (!r[0] && !r[12] && !r[15]) continue;
+        rows.push({
+          ID_Perro: String(r[0] || ''), Guia: String(r[1] || ''), Preparador_Juez: String(r[2] || ''),
+          Fecha_Sesion: r[3] instanceof Date ? Utilities.formatDate(r[3], tz, 'yyyy-MM-dd') : String(r[3] || ''),
+          Turno: String(r[4] || ''), Nivel_Dilucion: String(r[5] || ''), Dilucion_Teorica: String(r[6] || ''),
+          Bloque: Number(r[7]) || 1, Ronda_En_Bloque: Number(r[8]) || 1, Es_Blanco: String(r[9] || ''),
+          Posicion_Real: Number(r[10]) || 0, Posicion_Marcada: Number(r[11]) || 0, Resultado: String(r[12] || ''),
+          Timestamp: r[13] instanceof Date ? r[13].toISOString() : String(r[13] || ''),
+          Notas: String(r[14] || ''), Id_Pasada: String(r[15] || '')
+        });
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', count: rows.length, data: rows })).setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: 'online', message: 'Webhook activo' })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
 }`;
 
   const copyAppsScript = () => {
@@ -484,15 +528,33 @@ function doGet(e) {
           </div>
         )}
 
-        <button
-          type="button"
-          disabled={isTestingWebhook}
-          onClick={handleTestWebhook}
-          className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isTestingWebhook ? 'animate-spin text-[#FA963D]' : 'text-slate-500'}`} />
-          <span>{isTestingWebhook ? 'Comprobando conexión...' : 'Comprobar conexión con la hoja'}</span>
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {onPullFromSheets && (
+            <button
+              type="button"
+              disabled={isSyncing}
+              onClick={async () => {
+                const res = await onPullFromSheets();
+                if (res) {
+                  setTestResult({ success: res.success, message: res.message });
+                }
+              }}
+              className="w-full py-2.5 px-3 rounded-xl bg-[#108BF7] hover:bg-[#0284c7] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs disabled:opacity-60"
+            >
+              <Download className={`w-3.5 h-3.5 ${isSyncing ? 'animate-bounce' : ''}`} />
+              <span>{isSyncing ? 'Descargando...' : 'Descargar datos de Sheets'}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={isTestingWebhook}
+            onClick={handleTestWebhook}
+            className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isTestingWebhook ? 'animate-spin text-[#FA963D]' : 'text-slate-500'}`} />
+            <span>{isTestingWebhook ? 'Comprobando...' : 'Comprobar conexión'}</span>
+          </button>
+        </div>
 
         {/* Zona técnica avanzada protegida */}
         <div className="pt-2 border-t border-slate-100">

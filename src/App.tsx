@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Navbar, TabType } from './components/Navbar';
 import { LoggerView } from './components/LoggerView';
 import { AnalyticsView } from './components/AnalyticsView';
@@ -20,7 +20,11 @@ import {
   saveSessionDefaults,
   SessionDefaults,
 } from './services/storage';
-import { syncTrialsToWebhook } from './services/sheetsSync';
+import {
+  syncTrialsToWebhook,
+  fetchTrialsFromWebhook,
+  mergeTrialsFromSheets,
+} from './services/sheetsSync';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('logger');
@@ -98,6 +102,71 @@ export const App: React.FC = () => {
       setIsSyncing(false);
     }
   };
+
+  const handlePullFromSheets = useCallback(
+    async (silent = false) => {
+      if (!sheetsConfig.webhookUrl) {
+        if (!silent) {
+          showToast('Configura la URL de Google Sheets primero.');
+        }
+        return { success: false, message: 'Webhook no configurado.' };
+      }
+
+      setIsSyncing(true);
+      try {
+        const currentDogs = loadDogs();
+        const result = await fetchTrialsFromWebhook(
+          sheetsConfig.webhookUrl,
+          currentDogs,
+          OFFICIAL_DILUTION_TABLE
+        );
+
+        if (result.success && result.trials) {
+          if (result.discoveredDogs && result.discoveredDogs.length > 0) {
+            const updatedDogs = [...currentDogs, ...result.discoveredDogs];
+            setDogs(updatedDogs);
+            saveDogs(updatedDogs);
+          }
+
+          const localTrials = loadTrials();
+          const merged = mergeTrialsFromSheets(localTrials, result.trials);
+          saveTrials(merged);
+          setTrials(merged);
+
+          const updatedConfig = {
+            ...sheetsConfig,
+            lastSyncedAt: new Date().toISOString(),
+          };
+          setSheetsConfig(updatedConfig);
+          saveSheetsConfig(updatedConfig);
+
+          if (!silent) {
+            showToast(`Cargadas ${result.trials.length} pasadas desde Google Sheets`);
+          }
+        } else if (!silent) {
+          showToast(result.message);
+        }
+
+        return result;
+      } catch (e: any) {
+        const msg = `Error al descargar de Sheets: ${e.message}`;
+        if (!silent) showToast(msg);
+        return { success: false, message: msg };
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [sheetsConfig]
+  );
+
+  // Al iniciar la app, sincronizar automáticamente desde Google Sheets si hay webhook configurado
+  useEffect(() => {
+    if (sheetsConfig.webhookUrl) {
+      handlePullFromSheets(true);
+    }
+    // Solo al montar la aplicación
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleUpdateDefaults = (newDefaults: SessionDefaults) => {
     setSessionDefaults(newDefaults);
@@ -205,6 +274,8 @@ export const App: React.FC = () => {
             trials={trials}
             onUpdateTrials={handleUpdateAllTrials}
             levels={OFFICIAL_DILUTION_TABLE}
+            onPullFromSheets={() => handlePullFromSheets(false)}
+            isSyncing={isSyncing}
           />
         )}
       </main>
