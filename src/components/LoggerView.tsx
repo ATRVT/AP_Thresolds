@@ -236,14 +236,14 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
         <div className="grid grid-cols-2 gap-2">
           {/* Perro */}
           <div>
-            <label className="text-[10px] font-bold text-slate-400 block mb-0.5">
+            <label className="text-xs font-bold text-slate-500 block mb-1">
               Perro
             </label>
             <select
               value={sessionDefaults.dogId}
               onChange={(e) => handleDogChange(e.target.value)}
               aria-label="Seleccionar perro"
-              className="w-full bg-[#F3F5F2] border border-slate-200/80 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#FA963D]"
+              className="w-full bg-[#F3F5F2] border border-slate-200/80 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-[#FA963D]"
             >
               {dogs.map((dog) => (
                 <option key={dog.id} value={dog.id}>
@@ -255,7 +255,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
 
           {/* Nivel de dilución */}
           <div>
-            <label className="text-[10px] font-bold text-slate-400 flex items-center justify-between mb-0.5">
+            <label className="text-xs font-bold text-slate-500 flex items-center justify-between mb-1">
               <span>Nivel de dilución</span>
               {activeLevel.unitLabel && (
                 <b className="font-black text-[#108BF7] bg-[#108BF7]/10 px-1.5 rounded">
@@ -267,7 +267,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
               value={sessionDefaults.dilutionId}
               onChange={(e) => handleLevelChange(e.target.value)}
               aria-label="Seleccionar nivel de dilución"
-              className="w-full bg-[#F3F5F2] border border-slate-200/80 rounded-xl px-2.5 py-2 text-xs font-bold text-[#c2410c] focus:outline-none focus:border-[#FA963D]"
+              className="w-full bg-[#F3F5F2] border border-slate-200/80 rounded-xl px-3 py-2.5 text-sm font-bold text-[#c2410c] focus:outline-none focus:border-[#FA963D]"
             >
               {levels.map((lvl) => (
                 <option key={lvl.id} value={lvl.id}>
@@ -279,10 +279,10 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
         </div>
 
         {/* Fila compacta: Fecha editable directa + Guía/Juez desplegable */}
-        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+        <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 text-sm">
           {/* Selector directo de fecha */}
           <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5 text-[#FA963D] shrink-0" />
+            <Calendar className="w-4 h-4 text-[#FA963D] shrink-0" />
             <input
               type="date"
               value={activeDate}
@@ -293,7 +293,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 })
               }
               aria-label="Fecha de la sesión"
-              className="bg-[#F3F5F2] border border-slate-200/80 rounded-lg px-2 py-1 text-[11px] font-semibold text-slate-800 focus:outline-none focus:border-[#FA963D]"
+              className="bg-[#F3F5F2] border border-slate-200/80 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#FA963D]"
             />
             {!isToday && (
               <button
@@ -360,37 +360,37 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
       </div>
 
       {/* TARJETA 2: Panel unificado de bloque y registro en 1 pantalla */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 shadow-xs space-y-3">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-xs space-y-3.5">
         {/* Cabecera de progreso del bloque */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-[#FA963D]"></span>
-            <span className="text-xs font-bold text-slate-900">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#FA963D] shrink-0"></span>
+            <span className="text-sm font-extrabold text-slate-900">
               {isBlockFinished
                 ? `Bloque ${blockProgress.blockNumber} completado`
                 : `Bloque ${effectiveBlockNumber} • Ronda ${currentRoundNumber}/10`}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2">
             <span
-              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
                 blockProgress.isLevelMastered
                   ? 'bg-[#30E674]/20 text-[#15803d]'
                   : blockProgress.passedBlocksCount === 1
                   ? 'bg-[#108BF7]/15 text-[#108BF7]'
-                  : 'bg-slate-100 text-slate-500'
+                  : 'bg-slate-100 text-slate-600'
               }`}
             >
-              Bloques consec. ≥ 80%: {Math.min(blockProgress.passedBlocksCount, 2)}/2
+              Consec. ≥ 80%: {Math.min(blockProgress.passedBlocksCount, 2)}/2
             </span>
-            <span className="text-slate-500">
-              <b className="text-slate-900">{blockProgress.blockHits}/10</b>
+            <span className="text-sm font-black text-slate-900">
+              {blockProgress.blockHits}/10
             </span>
           </div>
         </div>
 
         {/* Tira visual de 10 rondas */}
-        <div className="grid grid-cols-10 gap-1">
+        <div className="grid grid-cols-10 gap-1.5">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((roundNum) => {
             const isCompleted = isBlockFinished ? true : roundNum < currentRoundNumber;
             const isCurrent = !isBlockFinished && roundNum === currentRoundNumber;
@@ -405,7 +405,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
             return (
               <div
                 key={roundNum}
-                className={`h-6 rounded-lg flex items-center justify-center text-[11px] font-bold transition-all border ${
+                className={`h-8 rounded-lg flex items-center justify-center text-sm font-extrabold transition-all border ${
                   isCurrent
                     ? 'border-[#FA963D] bg-[#FA963D]/10 text-[#c2410c] ring-2 ring-[#FA963D]/25'
                     : isCompleted
@@ -536,15 +536,15 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
           );
         })() : (
           <>
-            {/* PASO 1: Posición real limpia y compacta */}
-            <div className="pt-2 border-t border-slate-100 space-y-2">
+            {/* PASO 1: Posición real amplia y legible */}
+            <div className="pt-2.5 border-t border-slate-100 space-y-2.5">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-extrabold text-slate-900">
                     Posición del olor
                   </span>
                   {!isBlank && realPosition && (
-                    <span className="text-[11px] font-bold text-[#108BF7] bg-[#108BF7]/10 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-extrabold text-[#108BF7] bg-[#108BF7]/10 px-2.5 py-0.5 rounded-full">
                       Soporte {realPosition}
                     </span>
                   )}
@@ -554,19 +554,19 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                   <button
                     type="button"
                     onClick={handleRegeneratePlan}
-                    className="p-1.5 rounded-lg bg-[#F3F5F2] hover:bg-slate-200 text-slate-600 transition-colors"
+                    className="p-2 rounded-xl bg-[#F3F5F2] hover:bg-slate-200 text-slate-700 transition-colors"
                     title="Rebarajar orden aleatorio del bloque"
                   >
-                    <Shuffle className="w-3.5 h-3.5" />
+                    <Shuffle className="w-4 h-4" />
                   </button>
 
                   <button
                     type="button"
                     onClick={handleToggleBlank}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all border ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
                       isBlank
                         ? 'bg-[#108BF7]/15 border-[#108BF7] text-[#0369a1]'
-                        : 'bg-[#F3F5F2] border-slate-200 text-slate-600 hover:text-slate-900'
+                        : 'bg-[#F3F5F2] border-slate-200 text-slate-700 hover:text-slate-900'
                     }`}
                   >
                     {isBlank ? '⚪ Ronda en blanco' : '¿En blanco?'}
@@ -575,25 +575,25 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
               </div>
 
               {isBlank ? (
-                <div className="py-2.5 px-3 rounded-xl bg-[#108BF7]/10 border border-[#108BF7]/25 flex items-center justify-between">
+                <div className="py-3.5 px-3.5 rounded-xl bg-[#108BF7]/10 border border-[#108BF7]/25 flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-bold text-[#0369a1]">
+                    <p className="text-sm font-bold text-[#0369a1]">
                       Ronda en blanco (sin olor diana)
                     </p>
-                    <p className="text-[11px] text-slate-600">
+                    <p className="text-xs text-slate-600 mt-0.5">
                       Si no marca ningún soporte, registra <b>Vacío (VN)</b>.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={handleToggleBlank}
-                    className="text-[11px] font-semibold text-[#0369a1] underline ml-2"
+                    className="text-xs font-bold text-[#0369a1] underline ml-2 shrink-0"
                   >
                     Poner olor
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-8 gap-1.5">
+                <div className="grid grid-cols-4 gap-2">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((num) => {
                     const isSelected = !isBlank && realPosition === num;
                     const isSuggested = !isBlank && plannedRound?.suggestedPosition === num;
@@ -603,12 +603,12 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                         key={num}
                         type="button"
                         onClick={() => handleSelectRealPosition(num)}
-                        className={`h-10 rounded-xl text-sm font-bold transition-all flex items-center justify-center border ${
+                        className={`h-14 rounded-2xl text-xl font-black transition-all flex items-center justify-center border ${
                           isSelected
-                            ? 'bg-[#108BF7] border-[#108BF7] text-white shadow-sm ring-2 ring-[#108BF7]/25'
+                            ? 'bg-[#108BF7] border-[#108BF7] text-white shadow-sm ring-2 ring-[#108BF7]/30'
                             : isSuggested
                             ? 'bg-[#108BF7]/10 border-[#108BF7]/50 text-[#0369a1]'
-                            : 'bg-[#F3F5F2] border-slate-200/80 text-slate-700 hover:bg-slate-200'
+                            : 'bg-[#F3F5F2] border-slate-200/90 text-slate-800 hover:bg-slate-200'
                         }`}
                       >
                         {num}
@@ -619,13 +619,13 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
               )}
             </div>
 
-            {/* PASO 2: Respuesta del perro - 4 botones en línea horizontal */}
-            <div className="pt-2.5 border-t border-slate-100 space-y-2">
+            {/* PASO 2: Respuesta del perro - 4 botones grandes en línea horizontal */}
+            <div className="pt-3 border-t border-slate-100 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-800">
+                <span className="text-sm font-extrabold text-slate-900">
                   Respuesta de {activeDog.name}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-xs text-slate-400 font-medium">
                   1 toque registra y avanza
                 </span>
               </div>
@@ -635,20 +635,20 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRecordOutcome('VP')}
-                  className={`py-3 px-1.5 rounded-xl border bg-white flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs ${
+                  className={`py-4 px-1.5 rounded-2xl border bg-white flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs ${
                     isBlank
                       ? 'border-slate-200/60 opacity-40'
                       : 'border-slate-200/90 hover:border-[#30E674] hover:bg-[#30E674]/5'
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#30E674]/10 border border-[#30E674]/40 flex items-center justify-center text-[#16a34a]">
-                    <Check className="w-4 h-4 stroke-[2.5]" />
+                  <div className="w-11 h-11 rounded-full bg-[#30E674]/15 border border-[#30E674]/50 flex items-center justify-center text-[#16a34a]">
+                    <Check className="w-5 h-5 stroke-[2.75]" />
                   </div>
                   <div className="text-center">
-                    <span className="text-xs font-bold text-slate-800 block leading-tight">
+                    <span className="text-sm font-extrabold text-slate-900 block leading-tight">
                       Positivo
                     </span>
-                    <span className="text-[10px] font-semibold text-slate-400">
+                    <span className="text-xs font-bold text-slate-500">
                       VP
                     </span>
                   </div>
@@ -658,16 +658,16 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRecordOutcome('FP')}
-                  className="py-3 px-1.5 rounded-xl border border-slate-200/90 bg-white hover:border-[#FA963D] hover:bg-[#FA963D]/5 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs"
+                  className="py-4 px-1.5 rounded-2xl border border-slate-200/90 bg-white hover:border-[#FA963D] hover:bg-[#FA963D]/5 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs"
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#FA963D]/10 border border-[#FA963D]/40 flex items-center justify-center text-[#ea580c]">
-                    <X className="w-4 h-4 stroke-[2.5]" />
+                  <div className="w-11 h-11 rounded-full bg-[#FA963D]/15 border border-[#FA963D]/50 flex items-center justify-center text-[#ea580c]">
+                    <X className="w-5 h-5 stroke-[2.75]" />
                   </div>
                   <div className="text-center">
-                    <span className="text-xs font-bold text-slate-800 block leading-tight">
+                    <span className="text-sm font-extrabold text-slate-900 block leading-tight">
                       Falso
                     </span>
-                    <span className="text-[10px] font-semibold text-slate-400">
+                    <span className="text-xs font-bold text-slate-500">
                       FP
                     </span>
                   </div>
@@ -677,20 +677,20 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRecordOutcome('FN')}
-                  className={`py-3 px-1.5 rounded-xl border bg-white flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs ${
+                  className={`py-4 px-1.5 rounded-2xl border bg-white flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs ${
                     isBlank
                       ? 'border-slate-200/60 opacity-40'
                       : 'border-slate-200/90 hover:border-slate-400 hover:bg-slate-50'
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-600">
-                    <Minus className="w-4 h-4 stroke-[2.5]" />
+                  <div className="w-11 h-11 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700">
+                    <Minus className="w-5 h-5 stroke-[2.75]" />
                   </div>
                   <div className="text-center">
-                    <span className="text-xs font-bold text-slate-800 block leading-tight">
+                    <span className="text-sm font-extrabold text-slate-900 block leading-tight">
                       Omisión
                     </span>
-                    <span className="text-[10px] font-semibold text-slate-400">
+                    <span className="text-xs font-bold text-slate-500">
                       FN
                     </span>
                   </div>
@@ -700,20 +700,20 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRecordOutcome('VN')}
-                  className={`py-3 px-1.5 rounded-xl border bg-white flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-2xs ${
+                  className={`py-4 px-1.5 rounded-2xl border bg-white flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs ${
                     isBlank
                       ? 'border-[#108BF7] ring-2 ring-[#108BF7]/20 bg-[#108BF7]/5'
                       : 'border-slate-200/90 hover:border-[#108BF7] hover:bg-[#108BF7]/5'
                   }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#108BF7]/10 border border-[#108BF7]/40 flex items-center justify-center text-[#108BF7]">
-                    <CircleOff className="w-4 h-4 stroke-[2.2]" />
+                  <div className="w-11 h-11 rounded-full bg-[#108BF7]/15 border border-[#108BF7]/50 flex items-center justify-center text-[#108BF7]">
+                    <CircleOff className="w-5 h-5 stroke-[2.5]" />
                   </div>
                   <div className="text-center">
-                    <span className="text-xs font-bold text-slate-800 block leading-tight">
+                    <span className="text-sm font-extrabold text-slate-900 block leading-tight">
                       Vacío
                     </span>
-                    <span className="text-[10px] font-semibold text-[#108BF7]">
+                    <span className="text-xs font-bold text-[#108BF7]">
                       VN
                     </span>
                   </div>
@@ -725,14 +725,14 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
       </div>
 
       {/* Acciones secundarias discretas */}
-      <div className="flex items-center justify-between px-1 text-[11px]">
+      <div className="flex items-center justify-between px-1 text-xs">
         {trials.length > 0 ? (
           <button
             type="button"
             onClick={onUndoTrial}
-            className="text-slate-400 hover:text-rose-600 flex items-center gap-1 transition-colors py-1"
+            className="text-slate-500 hover:text-rose-600 flex items-center gap-1.5 transition-colors py-1.5 font-medium"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>Deshacer última ronda</span>
           </button>
         ) : (
@@ -742,7 +742,7 @@ export const LoggerView: React.FC<LoggerViewProps> = ({
         <button
           type="button"
           onClick={handleStartNewBlock}
-          className="text-slate-400 hover:text-[#108BF7] font-medium py-1"
+          className="text-slate-500 hover:text-[#108BF7] font-semibold py-1.5"
         >
           Nuevo bloque
         </button>
